@@ -65,6 +65,8 @@ dependencies {
 
 test {
     useJUnitPlatform()
+    // Opt-in tests that call the real MLB Stats API: ./gradlew test -Dmcbaseball.liveTests=true
+    systemProperty 'mcbaseball.liveTests', System.getProperty('mcbaseball.liveTests', 'false')
     testLogging {
         events 'passed', 'skipped', 'failed'
         exceptionFormat 'full'

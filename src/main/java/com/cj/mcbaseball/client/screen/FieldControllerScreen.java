@@ -2,6 +2,7 @@ package com.cj.mcbaseball.client.screen;
 
 import com.cj.mcbaseball.field.FieldControllerBlockEntity;
 import com.cj.mcbaseball.network.GameActionPacket;
+import com.cj.mcbaseball.client.screen.live.LiveGameBrowserScreen;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -22,7 +23,7 @@ public class FieldControllerScreen extends ControllerScreen {
         FieldControllerBlockEntity be = this.controller();
         this.lastActive = be != null && be.isGameActive();
         int x = this.width / 2 - 85;
-        int y = this.height / 2 - 62;
+        int y = this.height / 2 - 74;
         this.addRenderableWidget(
             Button.builder(
                     Component.translatable("mcbaseball.gui.field.how").withStyle(ChatFormatting.AQUA), b -> this.minecraft.setScreen(new HowToPlayScreen(this))
@@ -51,28 +52,36 @@ public class FieldControllerScreen extends ControllerScreen {
         }
 
         this.addRenderableWidget(
-            Button.builder(Component.translatable("mcbaseball.gui.field.teams"), b -> this.minecraft.setScreen(new TeamsScreen(this.pos, this)))
+            Button.builder(
+                    Component.translatable("mcbaseball.gui.field.watch_live").withStyle(ChatFormatting.RED),
+                    b -> this.minecraft.setScreen(new LiveGameBrowserScreen(this.pos, this))
+                )
                 .bounds(x, y + 24, 170, 20)
                 .build()
         );
         this.addRenderableWidget(
-            Button.builder(Component.translatable("mcbaseball.gui.field.players"), b -> this.minecraft.setScreen(new PlayersScreen(this.pos, this)))
+            Button.builder(Component.translatable("mcbaseball.gui.field.teams"), b -> this.minecraft.setScreen(new TeamsScreen(this.pos, this)))
                 .bounds(x, y + 48, 170, 20)
                 .build()
         );
         this.addRenderableWidget(
-            Button.builder(Component.translatable("mcbaseball.gui.field.setup"), b -> this.minecraft.setScreen(new FieldSetupScreen(this.pos, this)))
+            Button.builder(Component.translatable("mcbaseball.gui.field.players"), b -> this.minecraft.setScreen(new PlayersScreen(this.pos, this)))
                 .bounds(x, y + 72, 170, 20)
                 .build()
         );
         this.addRenderableWidget(
-            Button.builder(Component.translatable("mcbaseball.gui.field.settings"), b -> this.minecraft.setScreen(new GameSettingsScreen(this.pos, this)))
+            Button.builder(Component.translatable("mcbaseball.gui.field.setup"), b -> this.minecraft.setScreen(new FieldSetupScreen(this.pos, this)))
                 .bounds(x, y + 96, 170, 20)
                 .build()
         );
         this.addRenderableWidget(
-            Button.builder(Component.translatable("mcbaseball.gui.field.stats"), b -> this.minecraft.setScreen(new StatsScreen(this.pos, this)))
+            Button.builder(Component.translatable("mcbaseball.gui.field.settings"), b -> this.minecraft.setScreen(new GameSettingsScreen(this.pos, this)))
                 .bounds(x, y + 120, 170, 20)
+                .build()
+        );
+        this.addRenderableWidget(
+            Button.builder(Component.translatable("mcbaseball.gui.field.stats"), b -> this.minecraft.setScreen(new StatsScreen(this.pos, this)))
+                .bounds(x, y + 144, 170, 20)
                 .build()
         );
     }
@@ -88,7 +97,7 @@ public class FieldControllerScreen extends ControllerScreen {
 
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         this.renderBackground(g);
-        int top = this.height / 2 - 62;
+        int top = this.height / 2 - 74;
         this.title(g, top - 36);
         FieldControllerBlockEntity be = this.controller();
         if (be != null) {

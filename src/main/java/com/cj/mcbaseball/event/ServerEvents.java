@@ -6,6 +6,7 @@ import com.cj.mcbaseball.field.FieldSetupSessions;
 import com.cj.mcbaseball.game.BaseballGame;
 import com.cj.mcbaseball.game.GameKit;
 import com.cj.mcbaseball.game.GameManager;
+import com.cj.mcbaseball.live.LiveBaseballManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -95,6 +96,7 @@ public final class ServerEvents {
         FieldSetupSessions.clearAll();
         GameManager.endAll();
         BuildJobs.clear();
+        LiveBaseballManager.shutdown();
     }
 
     private ServerEvents() {

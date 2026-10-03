@@ -8,9 +8,9 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
-    private static final String PROTOCOL = "1";
+    private static final String PROTOCOL = "2";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-        new ResourceLocation("mcbaseball", "main"), () -> "1", "1"::equals, "1"::equals
+        new ResourceLocation("mcbaseball", "main"), () -> PROTOCOL, PROTOCOL::equals, PROTOCOL::equals
     );
     private static boolean registered;
 
@@ -82,6 +82,16 @@ public final class ModNetwork {
                 .encoder(TeamsSyncPacket::encode)
                 .decoder(TeamsSyncPacket::decode)
                 .consumerMainThread(TeamsSyncPacket::handle)
+                .add();
+            CHANNEL.messageBuilder(LiveBrowserRequestPacket.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(LiveBrowserRequestPacket::encode)
+                .decoder(LiveBrowserRequestPacket::decode)
+                .consumerMainThread(LiveBrowserRequestPacket::handle)
+                .add();
+            CHANNEL.messageBuilder(LiveScheduleSyncPacket.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(LiveScheduleSyncPacket::encode)
+                .decoder(LiveScheduleSyncPacket::decode)
+                .consumerMainThread(LiveScheduleSyncPacket::handle)
                 .add();
         }
     }
