@@ -62,6 +62,7 @@ public final class LiveWatchService<K> {
     private final Map<Long, Feed> feeds = new HashMap<>();
     private final Map<K, Long> watches = new HashMap<>();
     private final Map<K, LiveBaseballSession> sessions = new HashMap<>();
+    private java.util.function.Function<K, List<String>> extraDebug = k -> List.of();
     private final boolean debug;
     private int emitted;
     private int generation;
@@ -128,6 +129,11 @@ public final class LiveWatchService<K> {
     }
 
     @Nullable
+    /** Extra lines for the developer panel (e.g. what the NPC recreation is doing). */
+    public void setExtraDebug(java.util.function.Function<K, List<String>> extraDebug) {
+        this.extraDebug = extraDebug;
+    }
+
     public LiveBaseballSession session(K key) {
         return this.sessions.get(key);
     }
@@ -236,9 +242,11 @@ public final class LiveWatchService<K> {
             l.add("Provider: " + (f.gameId < 0 ? "Recorded game (replay)" : this.provider.displayName()) + " - " + f.status + (f.message.isEmpty() ? "" : " (" + f.message + ")"));
             l.add("Last update: " + (f.fetchedAt > 0 ? (now - f.fetchedAt) / 1000L + "s ago" : "never") + "   requests: " + this.fetchesStarted);
             l.addAll(s.debugLines(now));
+            l.addAll(this.extraDebug.apply(key));
             debugLines = l;
         }
-        return new LiveWatchSnapshot(f.gameId, f.state, f.status, f.fetchedAt, now, retryIn, f.message, this.provider.displayName(),
+        LiveGameState shown = f.state != null && s != null ? s.view(f.state) : f.state;
+        return new LiveWatchSnapshot(f.gameId, shown, f.status, f.fetchedAt, now, retryIn, f.message, this.provider.displayName(),
             ++this.emitted, s == null ? List.of() : s.recentEvents(), debugLines);
     }
 

@@ -193,12 +193,13 @@ public record LiveWatchSyncPacket(BlockPos controller, @Nullable LiveWatchSnapsh
         b.writeDouble(p.zoneBottom());
         b.writeInt(p.ballsAfter());
         b.writeInt(p.strikesAfter());
+        b.writeUtf(clip(p.callCode(), 8), 8);
     }
 
     private static LivePitch readPitch(FriendlyByteBuf b) {
         return new LivePitch(
             b.readUtf(SHORT), b.readUtf(8), b.readUtf(SHORT), b.readDouble(), b.readUtf(SHORT), b.readBoolean(), b.readBoolean(), b.readBoolean(),
-            b.readDouble(), b.readDouble(), b.readDouble(), b.readDouble(), b.readInt(), b.readInt()
+            b.readDouble(), b.readDouble(), b.readDouble(), b.readDouble(), b.readInt(), b.readInt(), b.readUtf(8)
         );
     }
 

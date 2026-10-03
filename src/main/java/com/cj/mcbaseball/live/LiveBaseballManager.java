@@ -12,6 +12,11 @@ import com.cj.mcbaseball.live.model.LiveWatchSnapshot;
 import com.cj.mcbaseball.live.recorded.RecordedFeedProvider;
 import com.cj.mcbaseball.live.recorded.RecordedGames;
 import com.cj.mcbaseball.live.recorded.RoutingProvider;
+import com.cj.mcbaseball.live.recreation.LiveRecreation;
+import com.cj.mcbaseball.live.session.LiveBaseballSession;
+import com.cj.mcbaseball.field.FieldLayout;
+import com.cj.mcbaseball.game.FieldGeometry;
+import com.cj.mcbaseball.game.GameManager;
 import com.cj.mcbaseball.network.LiveScheduleSyncPacket;
 import com.cj.mcbaseball.network.LiveWatchSyncPacket;
 import com.cj.mcbaseball.network.ModNetwork;
@@ -66,6 +71,8 @@ public final class LiveBaseballManager {
     private volatile List<LiveGameSummary> recordedGames = List.of();
     /** Which stadium's live HUD each player is currently being sent. */
     private final Map<UUID, Stadium> shown = new HashMap<>();
+    /** Stadiums whose field is ready get the game re-enacted by NPCs (Phase 4); the rest are scoreboard-only. */
+    private final Map<Stadium, LiveRecreation> recreations = new HashMap<>();
     private int ticks;
 
     /** A Field Controller somewhere in the world. */
@@ -123,6 +130,10 @@ public final class LiveBaseballManager {
             new RoutingProvider(this.provider, this.recorded), policy, server, System::currentTimeMillis, this::sendToAudience,
             msg -> MCBaseball.LOGGER.warn("[MCBaseball Live] {}", msg), this.debugMode
         );
+        this.watches.setExtraDebug(s -> {
+            LiveRecreation r = this.recreations.get(s);
+            return r == null ? List.of("NPCs: scoreboard-only (field not ready)") : r.debugLines();
+        });
     }
 
     /** Server thread only. */
@@ -144,6 +155,7 @@ public final class LiveBaseballManager {
         if (m == null) {
             return;
         }
+        m.closeAllRecreations();
         m.schedules.close();
         m.watches.close();
         m.provider.close();
@@ -174,19 +186,28 @@ public final class LiveBaseballManager {
 
     private void tick() {
         this.watches.tick(this.shown::containsValue);
+        this.tickRecreations();
         if (++this.ticks % 20 == 0) {
             this.refreshAudience();
         }
     }
 
-    /** Starts (or switches) the live game this stadium follows. */
-    public void startWatching(ServerLevel level, BlockPos controller, long gameId) {
+    /**
+     * Starts (or switches) the live game this stadium follows.
+     *
+     * @return true if NPCs will re-enact the game on the field, false if it is scoreboard/HUD only
+     */
+    public boolean startWatching(ServerLevel level, BlockPos controller, long gameId) {
         Stadium s = Stadium.of(level, controller);
         Long before = this.watches.watchedGame(s);
         if (gameId < 0) {
             this.recorded.rewind(gameId);
         }
+        if (before == null || before != gameId) {
+            this.closeRecreation(s);
+        }
         this.watches.start(s, gameId);
+        boolean npcs = this.recreations.containsKey(s) || this.openRecreation(level, s, gameId);
         MCBaseball.LOGGER.info("[MCBaseball Live] Field at {} now following game {}", controller.toShortString(), gameId);
         if (before != null && before != gameId) {
             // Switching games: viewers drop the old game's HUD until the new one's data arrives.
@@ -197,6 +218,77 @@ public final class LiveBaseballManager {
             }
         }
         this.refreshAudience();
+        return npcs;
+    }
+
+    private boolean openRecreation(ServerLevel level, Stadium s, long gameId) {
+        if (!(level.getBlockEntity(s.pos()) instanceof FieldControllerBlockEntity be)) {
+            return false;
+        }
+        FieldLayout layout = be.layout();
+        if (!layout.isReady() || GameManager.at(level, s.pos()) != null) {
+            return false;
+        }
+        FieldGeometry geo = FieldGeometry.of(level, layout);
+        if (GameManager.infieldFluid(level, geo) != null) {
+            return false;
+        }
+        LiveBaseballSession session = this.watches.session(s);
+        if (session == null) {
+            return false;
+        }
+        this.recreations.put(s, new LiveRecreation(level, s.pos(), geo, be.settings(), gameId));
+        session.attachPlayback(true);
+        return true;
+    }
+
+    private void tickRecreations() {
+        if (this.recreations.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        for (Map.Entry<Stadium, LiveRecreation> e : new java.util.ArrayList<>(this.recreations.entrySet())) {
+            LiveRecreation r = e.getValue();
+            LiveBaseballSession session = this.watches.session(e.getKey());
+            if (session == null || session.gameId() != r.gameId()) {
+                this.closeRecreation(e.getKey());
+                continue;
+            }
+            try {
+                r.tick(session, now);
+            } catch (Exception ex) {
+                // A broken recreation must never take the server (or the scoreboard feed) down with it.
+                MCBaseball.LOGGER.error("[MCBaseball Live] NPC recreation of game {} failed; continuing scoreboard-only", r.gameId(), ex);
+                this.closeRecreation(e.getKey());
+                continue;
+            }
+            if (r.isClosed()) {
+                // Game over (or removed from outside): the scoreboard keeps showing the final.
+                this.recreations.remove(e.getKey());
+                session.attachPlayback(false);
+            }
+        }
+    }
+
+    private void closeRecreation(Stadium s) {
+        LiveRecreation r = this.recreations.remove(s);
+        if (r != null) {
+            try {
+                r.close();
+            } catch (Exception ex) {
+                MCBaseball.LOGGER.error("[MCBaseball Live] Error closing NPC recreation of game {}", r.gameId(), ex);
+            }
+            LiveBaseballSession session = this.watches.session(s);
+            if (session != null) {
+                session.attachPlayback(false);
+            }
+        }
+    }
+
+    private void closeAllRecreations() {
+        for (Stadium s : new java.util.ArrayList<>(this.recreations.keySet())) {
+            this.closeRecreation(s);
+        }
     }
 
     public void stopWatching(ServerLevel level, BlockPos controller) {
@@ -205,6 +297,7 @@ public final class LiveBaseballManager {
 
     private void stop(Stadium s) {
         BlockPos controller = s.pos();
+        this.closeRecreation(s);
         if (this.watches.watchedGame(s) == null) {
             return;
         }

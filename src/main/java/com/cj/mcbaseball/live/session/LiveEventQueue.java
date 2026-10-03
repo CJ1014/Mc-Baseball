@@ -86,6 +86,29 @@ public final class LiveEventQueue {
         return started;
     }
 
+    /**
+     * Playback driven by the consumer (NPC animations set the pace): the next event if one is ready, ignoring
+     * the stand-in timings. Still holds an in-play pitch until its result arrives (with the same timeout).
+     */
+    @javax.annotation.Nullable
+    public LiveEvent pollNext(long now) {
+        LiveEvent next = this.pending.peekFirst();
+        if (next == null) {
+            return null;
+        }
+        if (this.waitsForResult(next)) {
+            if (this.waitingSince < 0L) {
+                this.waitingSince = now;
+            }
+            if (now - this.waitingSince < IN_PLAY_WAIT_MAX_MILLIS) {
+                return null;
+            }
+        }
+        this.waitingSince = -1L;
+        this.current = null;
+        return this.pending.pollFirst();
+    }
+
     private boolean waitsForResult(LiveEvent e) {
         if (!(e instanceof LiveEvent.Pitch p) || !p.event().pitch().isInPlay()) {
             return false;

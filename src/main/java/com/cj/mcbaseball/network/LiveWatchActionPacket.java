@@ -68,7 +68,8 @@ public record LiveWatchActionPacket(BlockPos controller, boolean start, long gam
         if (p.gameId == 0 || p.gameId < 0 && !BaseballConfig.LIVE_DEBUG_MODE.get()) {
             return;
         }
-        live.startWatching(level, p.controller, p.gameId);
-        sp.displayClientMessage(Component.translatable("mcbaseball.live.watch_started").withStyle(ChatFormatting.GREEN), true);
+        boolean npcs = live.startWatching(level, p.controller, p.gameId);
+        sp.displayClientMessage(Component.translatable(npcs ? "mcbaseball.live.watch_started_npcs" : "mcbaseball.live.watch_started")
+            .withStyle(ChatFormatting.GREEN), true);
     }
 }

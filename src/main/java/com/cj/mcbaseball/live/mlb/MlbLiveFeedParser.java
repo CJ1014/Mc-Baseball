@@ -70,7 +70,28 @@ public final class MlbLiveFeedParser {
             throw new LiveDataException(LiveDataException.Kind.INVALID_RESPONSE, "feed is for game " + pk + ", expected " + expectedGameId);
         }
         MlbLiveFeedParser p = new MlbLiveFeedParser(root);
-        return new LiveFeed(p.build(root, pk), p.plays(Json.arr(Json.obj(root, "liveData", "plays"), "allPlays")));
+        JsonObject boxTeams = Json.obj(root, "liveData", "boxscore", "teams");
+        return new LiveFeed(
+            p.build(root, pk),
+            p.plays(Json.arr(Json.obj(root, "liveData", "plays"), "allPlays")),
+            p.currentPitcher(Json.obj(boxTeams, "away")),
+            p.currentPitcher(Json.obj(boxTeams, "home"))
+        );
+    }
+
+    /** Last id in a boxscore team's "pitchers" list is whoever is pitching (or last pitched) for them. */
+    private LivePlayer currentPitcher(@Nullable JsonObject boxTeam) {
+        JsonArray ps = Json.arr(boxTeam, "pitchers");
+        if (ps == null || ps.size() == 0) {
+            return LivePlayer.NONE;
+        }
+        try {
+            JsonElement last = ps.get(ps.size() - 1);
+            int id = last != null && last.isJsonPrimitive() ? last.getAsInt() : 0;
+            return id > 0 ? this.playerById(id, "") : LivePlayer.NONE;
+        } catch (RuntimeException e) {
+            return LivePlayer.NONE;
+        }
     }
 
     private static final int MAX_PLAYS = 400;
@@ -436,7 +457,8 @@ public final class MlbLiveFeedParser {
             Json.dbl(pd, "strikeZoneTop", Double.NaN),
             Json.dbl(pd, "strikeZoneBottom", Double.NaN),
             Json.integer(count, "balls", -1),
-            Json.integer(count, "strikes", -1)
+            Json.integer(count, "strikes", -1),
+            Json.str(Json.obj(details, "call"), "code", Json.str(details, "code"))
         );
     }
 

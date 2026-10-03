@@ -12,6 +12,7 @@ package com.cj.mcbaseball.live.model;
  * @param plateZ    height at the plate, feet above the ground, NaN if unknown
  * @param zoneTop   batter's strike zone top (feet), NaN if unknown
  * @param zoneBottom batter's strike zone bottom (feet), NaN if unknown
+ * @param callCode  provider's call code (MLB: B, *B, C, S, W, F, T, L, M, X, D, E, H...), "" if unknown
  */
 public record LivePitch(
     String id,
@@ -27,15 +28,17 @@ public record LivePitch(
     double zoneTop,
     double zoneBottom,
     int ballsAfter,
-    int strikesAfter
+    int strikesAfter,
+    String callCode
 ) {
-    public static final LivePitch NONE = new LivePitch("", "", "", -1, "", false, false, false, Double.NaN, Double.NaN, Double.NaN, Double.NaN, -1, -1);
+    public static final LivePitch NONE = new LivePitch("", "", "", -1, "", false, false, false, Double.NaN, Double.NaN, Double.NaN, Double.NaN, -1, -1, "");
 
     public LivePitch {
         id = id == null ? "" : id;
         typeCode = typeCode == null ? "" : typeCode;
         typeName = typeName == null ? "" : typeName;
         call = call == null ? "" : call;
+        callCode = callCode == null ? "" : callCode;
     }
 
     public boolean known() {

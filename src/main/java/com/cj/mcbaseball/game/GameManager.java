@@ -170,6 +170,11 @@ public final class GameManager {
         }
     }
 
+    /** Live Mode: register a game built by the live recreation so it ticks and its NPCs stay alive. */
+    public static void registerLive(BaseballGame g) {
+        GAMES.put(g.id, g);
+    }
+
     private static void assignHuman(GameTeam t, ServerPlayer p, int pref) {
         LineupSlot slot = null;
         if (pref >= 0) {

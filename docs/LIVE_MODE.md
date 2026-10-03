@@ -4,7 +4,7 @@ Watch a real MLB game recreated by the mod's NPCs in your Minecraft stadium.
 The real game decides every outcome; the mod's existing pitching, batting, fielding and
 running systems make it look right.
 
-**Status: Phases 1-3 of 7 done.**
+**Status: Phases 1-4 of 7 done.**
 
 * **Phase 1:** Field Controller → **Watch Live Game** opens a graphical browser of today's real
   games (LIVE / UPCOMING / FINAL) with scores, inning, outs, count, first-pitch time, line score
@@ -21,7 +21,21 @@ running systems make it look right.
   order, and played at a watchable pace (catch-up up to 2x, never skipping events). The HUD shows a
   play-by-play ticker of what the recreation just played. Developer debug mode adds a **Live Debug**
   panel (real state vs. Minecraft state, queue, processed ids...) and **replay of recorded games**.
-  No NPC recreation yet: Phase 4 plugs NPCs into the queue.
+* **Phase 4:** if the field is set up (Field Setup → green FIELD READY), the game is **played out by
+  NPCs**: one NPC per real player with the real name, jersey number and handedness, the real batting
+  order (DH included) and the real fielder at each position. Team colours are plain generic colours
+  (home white pants, road gray; if both teams share a colour the road team wears gray). Every pitch
+  comes from the queue: the real pitcher winds up and throws the real pitch type at the real speed
+  to the real location (`pX`/`pZ` mapped onto the Minecraft zone, scaled to that batter's own zone).
+  The batter does exactly what the real batter did: take, swing and miss, foul, foul tip, bunt,
+  put it in play, or get hit. Balls in play leave the bat with the real exit velocity, launch angle
+  and spray direction when Statcast has them; the credited fielder runs to where it lands and the
+  batter runs. Pitching changes happen between pitches only. Outcomes (score, outs, runners) come
+  from the real at-bat result, not from the physics. If the field isn't ready, the game is followed
+  on the scoreboard/HUD only and the chat message says so.
+  Real data decides; the engine only animates. Pitches with no location in the feed get a
+  visual-only spot that agrees with the call (balls off the plate, strikes in the zone) and are
+  never shown as data. Unknown pitch types fly as a straight generic pitch.
 
 ## How it fits together
 
@@ -89,8 +103,16 @@ running systems make it look right.
 | `live.LiveDates` | "Today" for baseball = US Eastern date, rolling over at 5 AM ET. |
 | `live.LiveBaseballManager` | Per-server owner of threads, client, provider, service. |
 | `network.LiveBrowserRequestPacket` / `LiveScheduleSyncPacket` | Browser data (client ↔ server). |
-| `network.LiveWatchActionPacket` / `LiveWatchSyncPacket` | Start/stop following a game; HUD state to nearby players. Protocol version 4. |
+| `network.LiveWatchActionPacket` / `LiveWatchSyncPacket` | Start/stop following a game; HUD state to nearby players. Protocol version 5. |
 | `client.screen.live.*` | Browser and detail screens. |
+| `game.LiveGameDirector` | Hook interface into the engine (`tickPitching`, `onPitchReleased`, `onPitchResolved`). `null` for normal games, so normal games are unchanged. |
+| `live.recreation.LiveRecreation` | Phase 4 director: builds a `BaseballGame` from the real teams, pulls events from the session when the NPCs are ready, throws/swings/contacts, and syncs count, outs, score and runners from `RecreationState`. |
+| `live.recreation.LiveRoster` | Real lineup ↔ mod `LineupSlot`s; pinch hitters/runners, pitching changes; swaps the team's order each half-inning. |
+| `live.recreation.PitchCoordinateMapper` | Real plate location (feet, batter's zone) → Minecraft zone point. |
+| `live.recreation.LivePitchTypes` | MLB pitch codes → mod `PitchType` + break scale (cutter = short slider, sweeper = big slider, splitter = hard changeup...). |
+| `live.recreation.LiveSwing` | MLB call code → what the batter does. |
+| `live.recreation.LiveHitGeometry` | Exit velocity / launch / spray direction for balls in play (real Statcast first). |
+| `live.recreation.LiveTeamColors` | Generic team colours, clash rule. |
 
 ## Server config (`serverconfig/mcbaseball-server.toml`, section `[live]`)
 
@@ -155,12 +177,13 @@ running systems make it look right.
 
 ## Testing
 
-* `./gradlew build`: compiles, runs 86 unit tests (schedule and live-feed parsers on real recorded
+* `./gradlew build`: compiles, runs 106 unit tests (schedule and live-feed parsers on real recorded
   responses, malformed JSON, HTTP client against a misbehaving local server, schedule and watch
   service timing/backoff/sharing/audience/shutdown, packet round-trips, dates; Phase 3: every real
   event of a recorded inning exactly once and in order, joining at every snapshot never replays,
   corrections, queue pacing/catch-up, and the recreation state matching the real game after every
-  one of 20 real polls), builds the jar.
+  one of 20 real polls; Phase 4: zone mapping, every call code / pitch type / batted-ball direction of a
+  real 287-pitch game, team colours), builds the jar.
 * `./gradlew test -Dmcbaseball.liveTests=true --tests '*RealMlbApiSmokeTest'`: hits the real API.
 * `./gradlew runGameTestServer`: the mod's original 21 GameTests (including a full 9-inning NPC game).
 * Fixtures in `src/test/resources/live/mlb/` are real MLB responses (test-only, not in the jar).
@@ -170,7 +193,7 @@ running systems make it look right.
 1. ✅ Live data networking, today's games, Watch Live Game browser.
 2. ✅ Select a game → live feed → score / inning / count / outs / batter / pitcher / runners in a HUD.
 3. ✅ `LiveBaseballSession`: detect new pitches and plays without duplicates; event queue; join mid-game.
-4. Real pitches → Minecraft pitcher/batter NPCs (`PitchCoordinateMapper`, pitch-type mapping).
+4. ✅ Real pitches → Minecraft pitcher/batter NPCs (`PitchCoordinateMapper`, pitch-type mapping).
 5. Basic outcomes (balls, strikes, walks, strikeouts, hits, outs, home runs).
 6. Runners and fielding detail, double plays, steals, errors, sacrifices, substitutions.
 7. Broadcast cameras, presentation, crowd.

@@ -142,7 +142,7 @@ class LiveEventDetectorTest {
         d.sync(feeds.get(0));
         d.detect(feeds.get(5));
         LiveFeed changed = mapLastPitch(feeds.get(5), p -> new LivePitch(p.id(), p.typeCode(), p.typeName(), p.mph(), "Called Strike (ABS challenge)",
-            true, false, false, p.plateX(), p.plateZ(), p.zoneTop(), p.zoneBottom(), p.ballsAfter(), p.strikesAfter()));
+            true, false, false, p.plateX(), p.plateZ(), p.zoneTop(), p.zoneBottom(), p.ballsAfter(), p.strikesAfter(), "C"));
         List<LiveEvent> ev = d.detect(changed);
         assertEquals(1, ev.size());
         LiveEvent.CallChanged c = assertInstanceOf(LiveEvent.CallChanged.class, ev.get(0));

@@ -41,6 +41,11 @@ public final class LiveBaseballSession {
     private long lastAppliedRealTime;
     private int eventsDetected;
     private int eventsPlayed;
+    @Nullable
+    private LiveFeed lastFeed;
+    /** True while NPCs on a field play the events (they pull them); false = timed playback for the HUD only. */
+    private boolean playbackAttached;
+    private boolean changed;
 
     public LiveBaseballSession(long gameId, LiveEventQueue.Pacer pacer) {
         this.gameId = gameId;
@@ -54,6 +59,7 @@ public final class LiveBaseballSession {
     /** New feed data arrived. */
     public void onFeed(LiveFeed feed) {
         this.real = feed.state();
+        this.lastFeed = feed;
         if (!this.detector.isSynced()) {
             this.detector.sync(feed);
             this.recreation.reset(feed.state());
@@ -66,29 +72,70 @@ public final class LiveBaseballSession {
         }
     }
 
-    /** Plays due events; true if anything changed. */
+    /** Timed playback: plays due events; true if anything changed. With NPC playback attached, only reports changes. */
     public boolean tick(long now) {
+        if (this.playbackAttached) {
+            boolean c = this.changed;
+            this.changed = false;
+            return c;
+        }
         List<LiveEvent> started = this.queue.tick(now);
         for (LiveEvent e : started) {
-            this.recreation.apply(e);
-            this.eventsPlayed++;
-            if (e.timeMillis() > 0L) {
-                this.lastAppliedRealTime = e.timeMillis();
-            }
-            if (e instanceof LiveEvent.Pitch) {
-                this.lastPitch = e.label();
-            } else if (e instanceof LiveEvent.AtBatResult) {
-                this.lastPlay = e.label();
-            }
-            if (e instanceof LiveEvent.Action a && a.event().isDowntime()) {
-                continue;
-            }
-            this.recent.addFirst(e.label());
-            while (this.recent.size() > RECENT) {
-                this.recent.removeLast();
-            }
+            this.markPlayed(e);
         }
+        this.changed = false;
         return !started.isEmpty();
+    }
+
+    /** NPC playback: the field's recreation pulls events itself when its animations are done. */
+    public void attachPlayback(boolean attached) {
+        this.playbackAttached = attached;
+    }
+
+    public boolean isPlaybackAttached() {
+        return this.playbackAttached;
+    }
+
+    /** Next event for the NPCs, or null if nothing is ready (see LiveEventQueue#pollNext). */
+    @Nullable
+    public LiveEvent nextForPlayback(long now) {
+        return this.queue.pollNext(now);
+    }
+
+    /** Records that the recreation has shown this event (updates the Minecraft-side state and the ticker). */
+    public void markPlayed(LiveEvent e) {
+        this.recreation.apply(e);
+        this.eventsPlayed++;
+        this.changed = true;
+        if (e.timeMillis() > 0L) {
+            this.lastAppliedRealTime = e.timeMillis();
+        }
+        if (e instanceof LiveEvent.Pitch) {
+            this.lastPitch = e.label();
+        } else if (e instanceof LiveEvent.AtBatResult) {
+            this.lastPlay = e.label();
+        }
+        if (e instanceof LiveEvent.Action a && a.event().isDowntime()) {
+            return;
+        }
+        this.recent.addFirst(e.label());
+        while (this.recent.size() > RECENT) {
+            this.recent.removeLast();
+        }
+    }
+
+    public boolean isSynced() {
+        return this.detector.isSynced();
+    }
+
+    @Nullable
+    public LiveFeed lastFeed() {
+        return this.lastFeed;
+    }
+
+    /** What the HUD should show: the recreation's version of the game while NPCs play it, else the real state. */
+    public LiveGameState view(LiveGameState real) {
+        return this.playbackAttached && this.detector.isSynced() ? this.recreation.view(real) : real;
     }
 
     public List<String> recentEvents() {

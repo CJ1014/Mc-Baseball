@@ -2,7 +2,9 @@ package com.cj.mcbaseball.live.session;
 
 import com.cj.mcbaseball.live.model.LiveGameState;
 import com.cj.mcbaseball.live.model.LiveGameSummary;
+import com.cj.mcbaseball.live.model.LivePitch;
 import com.cj.mcbaseball.live.model.LivePlay;
+import com.cj.mcbaseball.live.model.LivePlayer;
 import com.cj.mcbaseball.live.model.LiveRunner;
 import java.util.HashSet;
 import java.util.Map;
@@ -11,7 +13,7 @@ import java.util.TreeMap;
 
 /**
  * The game as the Minecraft recreation has shown it so far: starts from the real state when watching
- * begins, then changes only through events the queue has played. Lags the real game by the queue.
+ * begins, then changes only through events that have been played. Lags the real game by the queue.
  */
 public final class RecreationState {
 
@@ -22,8 +24,12 @@ public final class RecreationState {
     public int outs;
     public int awayScore;
     public int homeScore;
-    /** base ("1B", "2B", "3B") -> runner player id */
-    public final Map<String, Integer> bases = new TreeMap<>();
+    /** base ("1B", "2B", "3B") -> runner */
+    public final Map<String, LivePlayer> bases = new TreeMap<>();
+    public LivePlayer batter = LivePlayer.NONE;
+    public LivePlayer pitcher = LivePlayer.NONE;
+    public LivePitch lastPitch = LivePitch.NONE;
+    public String lastPlay = "";
     private final Set<String> appliedRunners = new HashSet<>();
 
     public void reset(LiveGameState s) {
@@ -36,14 +42,18 @@ public final class RecreationState {
         this.homeScore = Math.max(0, s.homeScore());
         this.bases.clear();
         if (s.runnerOnFirst().known()) {
-            this.bases.put("1B", s.runnerOnFirst().id());
+            this.bases.put("1B", s.runnerOnFirst());
         }
         if (s.runnerOnSecond().known()) {
-            this.bases.put("2B", s.runnerOnSecond().id());
+            this.bases.put("2B", s.runnerOnSecond());
         }
         if (s.runnerOnThird().known()) {
-            this.bases.put("3B", s.runnerOnThird().id());
+            this.bases.put("3B", s.runnerOnThird());
         }
+        this.batter = s.batter();
+        this.pitcher = s.pitcher();
+        this.lastPitch = s.lastPitch();
+        this.lastPlay = s.lastPlay();
         this.appliedRunners.clear();
     }
 
@@ -55,7 +65,11 @@ public final class RecreationState {
             this.balls = 0;
             this.strikes = 0;
             this.bases.clear();
+            this.batter = LivePlayer.NONE;
         } else if (e instanceof LiveEvent.Pitch p) {
+            this.batter = p.play().batter();
+            this.pitcher = p.play().pitcher();
+            this.lastPitch = p.event().pitch();
             if (p.event().ballsAfter() >= 0 && p.event().strikesAfter() >= 0) {
                 this.balls = p.event().ballsAfter();
                 this.strikes = p.event().strikesAfter();
@@ -74,6 +88,9 @@ public final class RecreationState {
                     outsOnBases++;
                 }
             }
+            if (a.event().isSubstitution() && "P".equals(a.event().position()) && a.event().player().known()) {
+                this.pitcher = a.event().player();
+            }
             // The event's own out count is authoritative; counting outs on the bases is only a fallback.
             this.outs = a.event().outsAfter() >= 0 ? a.event().outsAfter() : Math.min(3, this.outs + outsOnBases);
         } else if (e instanceof LiveEvent.AtBatResult r) {
@@ -87,11 +104,13 @@ public final class RecreationState {
             }
             this.balls = 0;
             this.strikes = 0;
+            this.lastPlay = play.description();
             if (this.outs >= 3) {
                 this.bases.clear();
             }
         } else if (e instanceof LiveEvent.ResultChanged rc) {
             this.scoresFrom(rc.play());
+            this.lastPlay = rc.play().description();
         }
     }
 
@@ -108,12 +127,12 @@ public final class RecreationState {
             return false;
         }
         int id = r.runner().id();
-        this.bases.values().removeIf(v -> v == id);
+        this.bases.values().removeIf(v -> v.id() == id);
         if (r.isOut()) {
             return true;
         }
         switch (r.endBase()) {
-            case "1B", "2B", "3B" -> this.bases.put(r.endBase(), id);
+            case "1B", "2B", "3B" -> this.bases.put(r.endBase(), r.runner());
             case "score" -> {
                 if (countRuns) {
                     if (play.isTop()) {
@@ -131,6 +150,21 @@ public final class RecreationState {
 
     public int basesMask() {
         return (this.bases.containsKey("1B") ? 1 : 0) | (this.bases.containsKey("2B") ? 2 : 0) | (this.bases.containsKey("3B") ? 4 : 0);
+    }
+
+    /**
+     * The real game's state as the recreation has shown it: score, inning, count, outs, runners, batter,
+     * pitcher, last pitch and play come from what was played; names, teams and status from the real feed.
+     */
+    public LiveGameState view(LiveGameState real) {
+        return new LiveGameState(
+            real.gameId(), real.status(), real.away(), real.home(), real.startEpochMillis(), this.awayScore, this.homeScore,
+            this.inning, this.top ? "Top" : "Bottom", this.balls, this.strikes, this.outs, !this.batter.known(),
+            this.batter.known() ? this.batter : real.batter(), this.pitcher.known() ? this.pitcher : real.pitcher(), LivePlayer.NONE,
+            this.bases.getOrDefault("1B", LivePlayer.NONE), this.bases.getOrDefault("2B", LivePlayer.NONE), this.bases.getOrDefault("3B", LivePlayer.NONE),
+            real.awayTotals(), real.homeTotals(), real.awayInningRuns(), real.homeInningRuns(), this.lastPitch, this.lastPlay, real.venue(),
+            real.feedTimestamp(), real.suggestedPollSeconds(), real.awayLineup(), real.homeLineup()
+        );
     }
 
     public String summary(String awayAbbr, String homeAbbr) {

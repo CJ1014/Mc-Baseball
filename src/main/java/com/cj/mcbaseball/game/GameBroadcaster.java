@@ -32,7 +32,8 @@ public final class GameBroadcaster {
 
     public void tick() {
         int every = this.g.phase == GamePhase.BALL_IN_PLAY ? 4 : (this.g.phase == GamePhase.PITCHING ? 10 : 20);
-        if (this.dirty || this.g.tick % (long)every == 0L) {
+        // Live Mode games show the live scoreboard HUD instead; in-world scoreboards still update below.
+        if (this.g.director == null && (this.dirty || this.g.tick % (long)every == 0L)) {
             this.sendHud();
             this.dirty = false;
         }

@@ -95,6 +95,9 @@ public class BaseballGame {
     public String winnerName;
     private boolean ended;
     public final Map<String, Integer> counters = new TreeMap<>();
+    /** Live Mode: when set, real-world data decides pitches, swings and calls (see LiveGameDirector). */
+    @Nullable
+    public LiveGameDirector director;
 
     public void count(String k) {
         this.counters.merge(k, 1, Integer::sum);
@@ -425,6 +428,33 @@ public class BaseballGame {
                 }
             }
         }
+    }
+
+    /** Live Mode: defense to their spots, offense to the dugout (same as a normal half-inning start). */
+    public void livePositionForHalfInning() {
+        this.positionForHalfInning();
+    }
+
+    /** Live Mode: bring this exact batter to the plate (instead of the next one in the game's own order). */
+    public void liveSetBatter(LineupSlot next) {
+        if (this.batter != null && this.batter != next && !this.isOnBase(this.batter) && this.isOffense(this.batter)) {
+            GameTeam bt = this.team(this.batter.side);
+            int idx = Math.max(0, bt.order.indexOf(this.batter));
+            this.place(this.batter, this.geo.dugoutSpot(this.batter.side, idx, Math.max(1, bt.order.size())), this.geo.dugoutFacing(this.batter.side));
+            if (this.actor(this.batter) instanceof BaseballPlayerEntity old) {
+                old.clearHands();
+                old.setAnim(NpcAnim.NONE);
+            }
+        }
+        this.batter = next;
+        this.ensureActors();
+        this.place(next, this.geo.batterBox(next.batsRight()), this.geo.mound);
+        if (this.actor(next) instanceof BaseballPlayerEntity n) {
+            n.clearHands();
+            n.holdBat();
+            n.setAnim(NpcAnim.BAT_STANCE);
+        }
+        this.net.dirty();
     }
 
     private void startHalfInning() {
