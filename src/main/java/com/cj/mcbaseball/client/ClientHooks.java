@@ -3,6 +3,9 @@ package com.cj.mcbaseball.client;
 import com.cj.mcbaseball.client.screen.FieldControllerScreen;
 import com.cj.mcbaseball.client.screen.GameOverScreen;
 import com.cj.mcbaseball.client.screen.StadiumKitScreen;
+import com.cj.mcbaseball.live.model.LiveSchedule;
+import com.cj.mcbaseball.live.model.LiveWatchSnapshot;
+import javax.annotation.Nullable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -24,6 +27,14 @@ public final class ClientHooks {
         ClientStatsCache.lastGame = lastGame;
         ClientStatsCache.career = career;
         ClientStatsCache.version++;
+    }
+
+    public static void receiveLiveSchedule(LiveSchedule schedule) {
+        ClientLiveCache.accept(schedule);
+    }
+
+    public static void receiveLiveWatch(BlockPos controller, @Nullable LiveWatchSnapshot snapshot) {
+        ClientLiveWatch.accept(controller, snapshot);
     }
 
     private ClientHooks() {

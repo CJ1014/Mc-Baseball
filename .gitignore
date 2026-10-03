@@ -21,3 +21,4 @@ bin/
 
 # live-mode dev recordings
 live-recordings/
+logs/

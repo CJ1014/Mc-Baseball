@@ -79,6 +79,8 @@ public final class ClientEvents {
     public static void onLogout(LoggingOut event) {
         ClientFieldSetupState.setMarker(-1);
         ClientGameState.reset();
+        ClientLiveCache.clear();
+        ClientLiveWatch.clear();
     }
 
     private ClientEvents() {

@@ -3,6 +3,7 @@ package com.cj.mcbaseball.config;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.common.ForgeConfigSpec.BooleanValue;
 import net.minecraftforge.common.ForgeConfigSpec.Builder;
+import net.minecraftforge.common.ForgeConfigSpec.ConfigValue;
 import net.minecraftforge.common.ForgeConfigSpec.DoubleValue;
 import net.minecraftforge.common.ForgeConfigSpec.IntValue;
 
@@ -51,6 +52,16 @@ public final class BaseballConfig {
     public static final DoubleValue NPC_THROW_MAX_MPH;
     public static final DoubleValue TAG_REACH;
     public static final DoubleValue SLIDE_TAG_REDUCTION;
+    public static final BooleanValue LIVE_ENABLED;
+    public static final ConfigValue<String> LIVE_API_BASE_URL;
+    public static final IntValue LIVE_HTTP_TIMEOUT_SECONDS;
+    public static final IntValue LIVE_HTTP_RETRIES;
+    public static final IntValue LIVE_SCHEDULE_REFRESH_LIVE_SECONDS;
+    public static final IntValue LIVE_SCHEDULE_REFRESH_IDLE_SECONDS;
+    public static final IntValue LIVE_FEED_REFRESH_SECONDS;
+    public static final BooleanValue LIVE_DEBUG_RECORDING;
+    public static final BooleanValue LIVE_DEBUG_MODE;
+    public static final IntValue LIVE_DEBUG_RECORDING_MAX_FILES;
 
     private BaseballConfig() {
     }
@@ -130,6 +141,27 @@ public final class BaseballConfig {
         NPC_THROW_MAX_MPH = b.defineInRange("npcThrowMaxMph", 90.0, 20.0, 120.0);
         TAG_REACH = b.comment("How close a fielder holding the ball must be to tag a runner.").defineInRange("tagReach", 1.1, 0.3, 4.0);
         SLIDE_TAG_REDUCTION = b.comment("Sliding shrinks tag reach by this much.").defineInRange("slideTagReduction", 0.3, 0.0, 2.0);
+        b.pop();
+        b.comment("Live real-world baseball (Watch Live Game). Only the server talks to the data provider; clients never do.").push("live");
+        LIVE_ENABLED = b.comment("Allow players to browse and watch real games.").define("enabled", true);
+        LIVE_API_BASE_URL = b.comment("Base URL of the MLB Stats API (change only for a mirror/proxy).")
+            .define("apiBaseUrl", "https://statsapi.mlb.com");
+        LIVE_HTTP_TIMEOUT_SECONDS = b.comment("Give up on a single HTTP request after this long.").defineInRange("httpTimeoutSeconds", 10, 2, 60);
+        LIVE_HTTP_RETRIES = b.comment("Quick retries per request (timeouts, connection errors, HTTP 5xx/429) before reporting a failure.")
+            .defineInRange("httpRetries", 2, 0, 6);
+        LIVE_SCHEDULE_REFRESH_LIVE_SECONDS = b.comment("Refresh today's games this often while any game is live (only while someone has the browser open).")
+            .defineInRange("scheduleRefreshLiveSeconds", 15, 5, 300);
+        LIVE_SCHEDULE_REFRESH_IDLE_SECONDS = b.comment("Refresh this often when no game is live yet.")
+            .defineInRange("scheduleRefreshIdleSeconds", 60, 15, 3600);
+        LIVE_FEED_REFRESH_SECONDS = b.comment("While a watched game is live, read its feed this often (never faster than the feed's own hint, ~10s). Only while players are near the field.")
+            .defineInRange("feedRefreshSeconds", 10, 5, 120);
+        LIVE_DEBUG_RECORDING = b.comment("DEVELOPER: save every raw API response to <server folder>/mcbaseball-live-recordings for reproducing bugs. Leave off normally.")
+            .define("debugRecording", false);
+        LIVE_DEBUG_RECORDING_MAX_FILES = b.comment("DEVELOPER: stop recording after this many files per server run.")
+            .defineInRange("debugRecordingMaxFiles", 2000, 10, 100000);
+        LIVE_DEBUG_MODE = b.comment("DEVELOPER: show the Live Debug panel on Field Controllers following a game, and list recorded games",
+                "(from <server folder>/mcbaseball-live-recordings) under RECORDED (DEV) in today's game browser so they can be replayed.")
+            .define("debugMode", false);
         b.pop();
         SPEC = b.build();
     }

@@ -256,6 +256,11 @@ public final class BattingSystem {
     }
 
     public static void planNpcSwing(BaseballGame g, PitchRecord pr) {
+        if (g.director != null) {
+            // Live Mode: the batter does what the real batter did.
+            g.director.onPitchReleased(g, pr);
+            return;
+        }
         LineupSlot bs = g.batter;
         if (bs != null && bs.usesNpc() && g.ball != null) {
             BaseballEntity b = g.ball;

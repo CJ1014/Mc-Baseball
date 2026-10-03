@@ -269,6 +269,12 @@ public final class NpcDirector {
 
     private void tickPitching() {
         this.settleForPitch();
+        if (this.g.director != null) {
+            // Live Mode: the real game decides what is thrown and when.
+            this.g.director.tickPitching(this.g);
+            return;
+        }
+
         LineupSlot ps = this.g.pitcherSlot();
         BaseballPlayerEntity pn = this.g.npc(ps);
         if (this.g.pitch == null && pn != null && this.g.holder == ps && ps != null) {

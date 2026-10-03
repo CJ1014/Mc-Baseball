@@ -48,19 +48,28 @@ public final class PitchingSystem {
     public static void releasePitch(
         BaseballGame g, LineupSlot ps, LivingEntity pitcher, PitchType type, Vec3 target, double quality, int velocityRating, int stuffRating
     ) {
+        double mph = Mth.lerp((double)velocityRating / 99.0, (double)type.minMph, (double)type.maxMph)
+            * (0.94 + 0.06 * quality)
+            * (Double)BaseballConfig.PITCH_SPEED_SCALE.get();
+        double breakScale = (Double)BaseballConfig.PITCH_BREAK_SCALE.get() * (0.8 + (double)stuffRating / 99.0 * 0.4);
+        double miss = (1.0 - quality) * (Double)BaseballConfig.PITCH_MAX_MISS.get();
+        releaseAt(g, ps, pitcher, type, target, mph, breakScale, miss);
+    }
+
+    /**
+     * Throws a pitch of {@code type} at {@code mph} (display MPH) so it crosses home plate at {@code target}
+     * (plus Gaussian error of size {@code miss}). Live Mode calls this directly with the real speed, the real
+     * location and {@code miss = 0}.
+     */
+    public static void releaseAt(BaseballGame g, LineupSlot ps, LivingEntity pitcher, PitchType type, Vec3 target, double mph, double breakScale, double miss) {
         FieldGeometry geo = g.geo;
         Vec3 toHome = geo.forward.reverse();
         Vec3 armSide = ps.throwsRight() ? geo.right.reverse() : geo.right;
         Vec3 release = new Vec3(pitcher.getX(), pitcher.getEyeY() - 0.25, pitcher.getZ())
             .add(armSide.scale(0.35))
             .add(toHome.scale(0.6));
-        double mph = Mth.lerp((double)velocityRating / 99.0, (double)type.minMph, (double)type.maxMph)
-            * (0.94 + 0.06 * quality)
-            * (Double)BaseballConfig.PITCH_SPEED_SCALE.get();
         double speed = BaseballUnits.blocksPerTickFromDisplayMph(mph);
-        double breakScale = (Double)BaseballConfig.PITCH_BREAK_SCALE.get() * (0.8 + (double)stuffRating / 99.0 * 0.4);
         Vec3 brk = armSide.scale(type.armSide * breakScale).add(0.0, type.vertical * breakScale, 0.0);
-        double miss = (1.0 - quality) * (Double)BaseballConfig.PITCH_MAX_MISS.get();
         Vec3 aim = target.add(geo.right.scale(g.rng.nextGaussian() * miss * 0.7)).add(0.0, g.rng.nextGaussian() * miss * 0.6, 0.0);
         BallPhysics.Params params = BallPhysics.Params.fromConfig();
         Function<Vec3, Vec3> spinFor = vel -> BallPhysics.spinForAccel(vel, brk, params);
@@ -358,6 +367,12 @@ public final class PitchingSystem {
             g.giveBallTo(catcher != null ? catcher : g.pitcherSlot());
             if (g.actor(catcher) instanceof BaseballPlayerEntity n) {
                 n.setAnim(NpcAnim.CATCH_READY);
+            }
+
+            if (g.director != null) {
+                // Live Mode: the real call, not the physics, decides ball/strike.
+                g.director.onPitchResolved(g);
+                return;
             }
 
             g.applyCount(call);
