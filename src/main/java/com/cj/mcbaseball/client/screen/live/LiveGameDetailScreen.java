@@ -1,9 +1,12 @@
 package com.cj.mcbaseball.client.screen.live;
 
 import com.cj.mcbaseball.client.ClientLiveCache;
+import com.cj.mcbaseball.client.ClientLiveWatch;
 import com.cj.mcbaseball.live.model.LiveGameStatus;
 import com.cj.mcbaseball.live.model.LiveGameSummary;
 import com.cj.mcbaseball.live.model.LiveLineTotals;
+import com.cj.mcbaseball.network.LiveWatchActionPacket;
+import com.cj.mcbaseball.network.ModNetwork;
 import java.util.List;
 import javax.annotation.Nullable;
 import net.minecraft.ChatFormatting;
@@ -16,7 +19,8 @@ import net.minecraft.network.chat.Component;
 
 /**
  * One real game: score, inning, count, line score, first-pitch time. Keeps refreshing while open.
- * The WATCH LIVE / WAIT FOR GAME action is where the stadium recreation starts (Phase 2+).
+ * WATCH LIVE / WAIT FOR GAME makes this Field Controller follow the game: everyone near the field
+ * gets the live scoreboard HUD (Phase 2). NPC recreation of the plays comes in later phases.
  */
 public class LiveGameDetailScreen extends LiveScreen {
 
@@ -39,16 +43,24 @@ public class LiveGameDetailScreen extends LiveScreen {
         int cx = this.width / 2;
         int by = this.height - 28;
         LiveGameSummary g = this.game();
-        if (g != null && !g.status().state().hasNoGame() && g.section() != LiveGameStatus.Section.FINAL) {
-            // Phase 1 delivers the data browser; the stadium recreation behind this button is Phase 2+.
-            // Plain (unstyled) text while disabled so it doesn't look clickable.
-            Component label = g.section() == LiveGameStatus.Section.LIVE
-                ? Component.translatable("mcbaseball.gui.live.watch_live")
-                : Component.translatable("mcbaseball.gui.live.wait_for_game");
-            Button action = this.addRenderableWidget(Button.builder(label, b -> {
+        boolean thisGameOnField = ClientLiveWatch.watchingAt(this.pos) && ClientLiveWatch.snapshot().gameId() == this.gameId;
+        if (thisGameOnField) {
+            this.addRenderableWidget(Button.builder(Component.translatable("mcbaseball.gui.live.stop_watching").withStyle(ChatFormatting.RED), b -> {
+                ModNetwork.toServer(LiveWatchActionPacket.stop(this.pos));
+                this.minecraft.setScreen(null);
             }).bounds(cx - 160, by, 150, 20).build());
-            action.active = false;
-            action.setTooltip(Tooltip.create(Component.translatable("mcbaseball.gui.live.phase2_tip")));
+            this.back(cx + 10, by, 150);
+        } else if (g != null && !g.status().state().hasNoGame() && g.section() != LiveGameStatus.Section.FINAL) {
+            Component label = g.section() == LiveGameStatus.Section.LIVE
+                ? Component.translatable("mcbaseball.gui.live.watch_live").withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD)
+                : Component.translatable("mcbaseball.gui.live.wait_for_game").withStyle(ChatFormatting.AQUA);
+            Button action = this.addRenderableWidget(Button.builder(label, b -> {
+                // The field follows this game; close the menu so the live scoreboard is visible.
+                ModNetwork.toServer(LiveWatchActionPacket.start(this.pos, this.gameId));
+                this.minecraft.setScreen(null);
+            }).bounds(cx - 160, by, 150, 20).build());
+            action.setTooltip(Tooltip.create(Component.translatable(
+                g.section() == LiveGameStatus.Section.LIVE ? "mcbaseball.gui.live.watch_tip" : "mcbaseball.gui.live.wait_tip")));
             this.back(cx + 10, by, 150);
         } else {
             this.back(cx - 75, by, 150);
@@ -61,6 +73,9 @@ public class LiveGameDetailScreen extends LiveScreen {
         int cx = this.width / 2;
         LiveGameSummary game = this.game();
         g.drawCenteredString(this.font, this.connectionLine(), cx, this.height - 42, LiveText.GRAY);
+        if (ClientLiveWatch.watchingAt(this.pos) && ClientLiveWatch.snapshot().gameId() == this.gameId) {
+            g.drawCenteredString(this.font, Component.translatable("mcbaseball.gui.live.on_field").withStyle(ChatFormatting.GREEN), cx, this.height - 54, LiveText.GREEN);
+        }
         if (game == null) {
             g.drawCenteredString(this.font, this.title.copy().withStyle(ChatFormatting.BOLD), cx, 8, LiveText.WHITE);
             Component msg = this.data() == null

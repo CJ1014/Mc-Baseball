@@ -46,6 +46,7 @@ public final class ServerEvents {
     public static void onServerTick(ServerTickEvent event) {
         if (event.phase == Phase.END) {
             GameManager.tick(event.getServer());
+            LiveBaseballManager.tickIfRunning(event.getServer());
             BuildJobs.tick(event.getServer());
             if (event.getServer().getTickCount() % 20 == 0) {
                 FieldSetupSessions.tickExpiry(event.getServer());

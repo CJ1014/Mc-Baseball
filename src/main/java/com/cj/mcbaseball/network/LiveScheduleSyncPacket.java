@@ -19,8 +19,8 @@ import net.minecraftforge.network.NetworkEvent.Context;
 public record LiveScheduleSyncPacket(LiveSchedule schedule) {
     static final int MAX_GAMES = 64;
     static final int MAX_INNINGS = 30;
-    private static final int SHORT = 64;
-    private static final int LONG = 256;
+    static final int SHORT = 64;
+    static final int LONG = 256;
 
     public static void encode(LiveScheduleSyncPacket p, FriendlyByteBuf b) {
         LiveSchedule s = p.schedule;
@@ -119,7 +119,7 @@ public record LiveScheduleSyncPacket(LiveSchedule schedule) {
         );
     }
 
-    private static void writeTeam(FriendlyByteBuf b, LiveTeam t) {
+    static void writeTeam(FriendlyByteBuf b, LiveTeam t) {
         b.writeVarInt(Math.max(0, t.id()));
         b.writeUtf(clip(t.name(), SHORT), SHORT);
         b.writeUtf(clip(t.abbreviation(), SHORT), SHORT);
@@ -127,22 +127,22 @@ public record LiveScheduleSyncPacket(LiveSchedule schedule) {
         b.writeUtf(clip(t.locationName(), SHORT), SHORT);
     }
 
-    private static LiveTeam readTeam(FriendlyByteBuf b) {
+    static LiveTeam readTeam(FriendlyByteBuf b) {
         return new LiveTeam(b.readVarInt(), b.readUtf(SHORT), b.readUtf(SHORT), b.readUtf(SHORT), b.readUtf(SHORT));
     }
 
-    private static void writeTotals(FriendlyByteBuf b, LiveLineTotals t) {
+    static void writeTotals(FriendlyByteBuf b, LiveLineTotals t) {
         b.writeInt(t.runs());
         b.writeInt(t.hits());
         b.writeInt(t.errors());
         b.writeInt(t.leftOnBase());
     }
 
-    private static LiveLineTotals readTotals(FriendlyByteBuf b) {
+    static LiveLineTotals readTotals(FriendlyByteBuf b) {
         return new LiveLineTotals(b.readInt(), b.readInt(), b.readInt(), b.readInt());
     }
 
-    private static void writeInnings(FriendlyByteBuf b, List<Integer> runs) {
+    static void writeInnings(FriendlyByteBuf b, List<Integer> runs) {
         int n = Math.min(runs.size(), MAX_INNINGS);
         b.writeVarInt(n);
         for (int i = 0; i < n; i++) {
@@ -151,7 +151,7 @@ public record LiveScheduleSyncPacket(LiveSchedule schedule) {
         }
     }
 
-    private static List<Integer> readInnings(FriendlyByteBuf b) {
+    static List<Integer> readInnings(FriendlyByteBuf b) {
         int n = b.readVarInt();
         if (n < 0 || n > MAX_INNINGS) {
             throw new IllegalArgumentException("Too many innings in packet: " + n);

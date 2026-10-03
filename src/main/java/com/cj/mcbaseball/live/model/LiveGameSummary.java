@@ -63,17 +63,22 @@ public record LiveGameSummary(
 
     /** "Top 4th", "Mid 4th", "Bot 7th", "End 9th", or "" if unknown. */
     public String inningLabel() {
-        if (this.inning <= 0) {
+        return inningLabel(this.inning, this.inningState);
+    }
+
+    /** "Top 4th", "Mid 4th", "Bot 7th", "End 9th", "4th" (unknown half), or "" if no inning. */
+    public static String inningLabel(int inning, String inningState) {
+        if (inning <= 0) {
             return "";
         }
-        String half = switch (this.inningState) {
+        String half = switch (inningState == null ? "" : inningState) {
             case "Top" -> "Top";
             case "Middle" -> "Mid";
             case "Bottom" -> "Bot";
             case "End" -> "End";
             default -> "";
         };
-        String ord = ordinal(this.inning);
+        String ord = ordinal(inning);
         return half.isEmpty() ? ord : half + " " + ord;
     }
 

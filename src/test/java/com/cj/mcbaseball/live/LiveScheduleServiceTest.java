@@ -54,6 +54,11 @@ class LiveScheduleServiceTest {
         }
 
         @Override
+        public CompletableFuture<com.cj.mcbaseball.live.model.LiveGameState> getLiveGameState(long gameId) {
+            return new CompletableFuture<>();
+        }
+
+        @Override
         public void close() {
         }
 

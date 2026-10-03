@@ -1,6 +1,7 @@
 package com.cj.mcbaseball.client;
 
 import com.cj.mcbaseball.client.hud.GameHud;
+import com.cj.mcbaseball.client.hud.LiveGameHud;
 import com.cj.mcbaseball.client.render.AngledBlockRenderer;
 import com.cj.mcbaseball.client.render.BaseballPlayerRenderer;
 import com.cj.mcbaseball.client.render.BaseballRenderer;
@@ -72,6 +73,7 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void registerOverlays(RegisterGuiOverlaysEvent event) {
         event.registerAboveAll("baseball_hud", (gui, graphics, partialTick, width, height) -> GameHud.render(graphics, width, height));
+        event.registerAboveAll("live_game_hud", (gui, graphics, partialTick, width, height) -> LiveGameHud.render(graphics, width, height));
     }
 
     private ClientSetup() {

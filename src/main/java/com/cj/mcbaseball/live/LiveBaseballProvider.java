@@ -1,5 +1,6 @@
 package com.cj.mcbaseball.live;
 
+import com.cj.mcbaseball.live.model.LiveGameState;
 import com.cj.mcbaseball.live.model.LiveGameSummary;
 import java.time.LocalDate;
 import java.util.List;
@@ -20,8 +21,10 @@ import java.util.concurrent.CompletableFuture;
  *   <li>Missing or odd fields in the source data produce defaults, never exceptions.</li>
  * </ul>
  *
- * <p>Phase 1 covers the schedule. Phase 2 adds the live-feed methods (game state, plays, players,
- * line score, current at-bat) to this interface along with their models.
+ * <p>One live-feed request returns everything about a game at once (score, line score, count,
+ * current at-bat, runners, players, lineups), so {@link #getLiveGameState} delivers all of it in a
+ * single {@link LiveGameState} rather than separate calls that would each hit the network.
+ * Phase 3 adds play-by-play events.
  */
 public interface LiveBaseballProvider {
 
@@ -36,6 +39,9 @@ public interface LiveBaseballProvider {
 
     /** Fresh schedule-level info for one game; empty if the provider doesn't know the game. */
     CompletableFuture<Optional<LiveGameSummary>> getGameInfo(long gameId);
+
+    /** Current state of one game from its live feed (score, inning, count, batter, pitcher, runners, lineups). */
+    CompletableFuture<LiveGameState> getLiveGameState(long gameId);
 
     /** Releases threads/connections. Pending futures complete exceptionally with CANCELLED. */
     void close();

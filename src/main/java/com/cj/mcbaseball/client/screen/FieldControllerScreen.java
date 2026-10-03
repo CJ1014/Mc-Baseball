@@ -2,7 +2,11 @@ package com.cj.mcbaseball.client.screen;
 
 import com.cj.mcbaseball.field.FieldControllerBlockEntity;
 import com.cj.mcbaseball.network.GameActionPacket;
+import com.cj.mcbaseball.client.ClientLiveWatch;
 import com.cj.mcbaseball.client.screen.live.LiveGameBrowserScreen;
+import com.cj.mcbaseball.live.model.LiveWatchSnapshot;
+import com.cj.mcbaseball.network.LiveWatchActionPacket;
+import com.cj.mcbaseball.network.ModNetwork;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -13,6 +17,7 @@ public class FieldControllerScreen extends ControllerScreen {
     private static final int BTN_W = 170;
     private static final int GAP = 24;
     private boolean lastActive;
+    private boolean lastWatching;
 
     public FieldControllerScreen(BlockPos pos) {
         super(Component.translatable("mcbaseball.gui.field.title"), pos, null);
@@ -51,14 +56,32 @@ public class FieldControllerScreen extends ControllerScreen {
             );
         }
 
-        this.addRenderableWidget(
-            Button.builder(
-                    Component.translatable("mcbaseball.gui.field.watch_live").withStyle(ChatFormatting.RED),
-                    b -> this.minecraft.setScreen(new LiveGameBrowserScreen(this.pos, this))
-                )
-                .bounds(x, y + 24, 170, 20)
-                .build()
-        );
+        this.lastWatching = ClientLiveWatch.watchingAt(this.pos);
+        if (this.lastWatching) {
+            LiveWatchSnapshot snap = ClientLiveWatch.snapshot();
+            Component label = snap != null && snap.state() != null
+                ? Component.translatable("mcbaseball.gui.field.live_now", snap.state().away().displayAbbr() + " @ " + snap.state().home().displayAbbr())
+                : Component.translatable("mcbaseball.gui.field.watch_live");
+            this.addRenderableWidget(
+                Button.builder(label.copy().withStyle(ChatFormatting.RED), b -> this.minecraft.setScreen(new LiveGameBrowserScreen(this.pos, this)))
+                    .bounds(x, y + 24, 116, 20)
+                    .build()
+            );
+            this.addRenderableWidget(
+                Button.builder(Component.translatable("mcbaseball.gui.field.live_stop"), b -> ModNetwork.toServer(LiveWatchActionPacket.stop(this.pos)))
+                    .bounds(x + 120, y + 24, 50, 20)
+                    .build()
+            );
+        } else {
+            this.addRenderableWidget(
+                Button.builder(
+                        Component.translatable("mcbaseball.gui.field.watch_live").withStyle(ChatFormatting.RED),
+                        b -> this.minecraft.setScreen(new LiveGameBrowserScreen(this.pos, this))
+                    )
+                    .bounds(x, y + 24, 170, 20)
+                    .build()
+            );
+        }
         this.addRenderableWidget(
             Button.builder(Component.translatable("mcbaseball.gui.field.teams"), b -> this.minecraft.setScreen(new TeamsScreen(this.pos, this)))
                 .bounds(x, y + 48, 170, 20)
@@ -90,7 +113,7 @@ public class FieldControllerScreen extends ControllerScreen {
     public void tick() {
         super.tick();
         FieldControllerBlockEntity be = this.controller();
-        if (be != null && be.isGameActive() != this.lastActive) {
+        if (be != null && be.isGameActive() != this.lastActive || ClientLiveWatch.watchingAt(this.pos) != this.lastWatching) {
             this.rebuildWidgets();
         }
     }
@@ -101,7 +124,9 @@ public class FieldControllerScreen extends ControllerScreen {
         this.title(g, top - 36);
         FieldControllerBlockEntity be = this.controller();
         if (be != null) {
-            Component status = (Component)(be.isGameActive()
+            Component status = (Component)(ClientLiveWatch.watchingAt(this.pos)
+                ? Component.translatable("mcbaseball.gui.field.live_status").withStyle(new ChatFormatting[]{ChatFormatting.RED, ChatFormatting.BOLD})
+                : be.isGameActive()
                 ? Component.translatable("mcbaseball.gui.field.in_progress").withStyle(new ChatFormatting[]{ChatFormatting.GOLD, ChatFormatting.BOLD})
                 : be.statusLine());
             g.drawCenteredString(this.font, status, this.width / 2, top - 20, 16777215);

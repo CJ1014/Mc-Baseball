@@ -4,6 +4,7 @@ import com.cj.mcbaseball.MCBaseball;
 import com.cj.mcbaseball.config.BaseballConfig;
 import com.cj.mcbaseball.field.FieldControllerBlockEntity;
 import com.cj.mcbaseball.field.FieldLayout;
+import com.cj.mcbaseball.live.LiveBaseballManager;
 import com.cj.mcbaseball.team.TeamData;
 import com.cj.mcbaseball.team.TeamRegistry;
 import java.util.ArrayList;
@@ -86,6 +87,8 @@ public final class GameManager {
     public static GameManager.StartResult tryStart(ServerLevel level, FieldControllerBlockEntity be, @Nullable ServerPlayer starter) {
         if (at(level, be.getBlockPos()) != null) {
             return fail("mcbaseball.start.already_running");
+        } else if (LiveBaseballManager.isWatching(level, be.getBlockPos())) {
+            return fail("mcbaseball.start.live_watching");
         } else {
             FieldLayout layout = be.layout();
             if (!layout.isReady()) {

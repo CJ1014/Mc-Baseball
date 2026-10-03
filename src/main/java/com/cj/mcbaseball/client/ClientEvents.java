@@ -80,6 +80,7 @@ public final class ClientEvents {
         ClientFieldSetupState.setMarker(-1);
         ClientGameState.reset();
         ClientLiveCache.clear();
+        ClientLiveWatch.clear();
     }
 
     private ClientEvents() {

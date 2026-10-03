@@ -58,6 +58,7 @@ public final class BaseballConfig {
     public static final IntValue LIVE_HTTP_RETRIES;
     public static final IntValue LIVE_SCHEDULE_REFRESH_LIVE_SECONDS;
     public static final IntValue LIVE_SCHEDULE_REFRESH_IDLE_SECONDS;
+    public static final IntValue LIVE_FEED_REFRESH_SECONDS;
     public static final BooleanValue LIVE_DEBUG_RECORDING;
     public static final IntValue LIVE_DEBUG_RECORDING_MAX_FILES;
 
@@ -151,6 +152,8 @@ public final class BaseballConfig {
             .defineInRange("scheduleRefreshLiveSeconds", 15, 5, 300);
         LIVE_SCHEDULE_REFRESH_IDLE_SECONDS = b.comment("Refresh this often when no game is live yet.")
             .defineInRange("scheduleRefreshIdleSeconds", 60, 15, 3600);
+        LIVE_FEED_REFRESH_SECONDS = b.comment("While a watched game is live, read its feed this often (never faster than the feed's own hint, ~10s). Only while players are near the field.")
+            .defineInRange("feedRefreshSeconds", 10, 5, 120);
         LIVE_DEBUG_RECORDING = b.comment("DEVELOPER: save every raw API response to <server folder>/mcbaseball-live-recordings for reproducing bugs. Leave off normally.")
             .define("debugRecording", false);
         LIVE_DEBUG_RECORDING_MAX_FILES = b.comment("DEVELOPER: stop recording after this many files per server run.")
