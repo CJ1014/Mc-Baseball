@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "mcbaseball:block/scoreboard_front",
+    "side": "mcbaseball:block/scoreboard_side",
+    "top": "mcbaseball:block/scoreboard_side"
+  }
+}

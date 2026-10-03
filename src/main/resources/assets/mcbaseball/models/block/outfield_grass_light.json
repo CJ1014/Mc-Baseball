@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "mcbaseball:block/outfield_grass_light"
+  }
+}

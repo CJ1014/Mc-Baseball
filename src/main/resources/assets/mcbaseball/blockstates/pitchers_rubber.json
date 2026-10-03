@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "mcbaseball:block/pitchers_rubber"
+    },
+    "facing=east": {
+      "model": "mcbaseball:block/pitchers_rubber",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "mcbaseball:block/pitchers_rubber",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "mcbaseball:block/pitchers_rubber",
+      "y": 270
+    }
+  }
+}

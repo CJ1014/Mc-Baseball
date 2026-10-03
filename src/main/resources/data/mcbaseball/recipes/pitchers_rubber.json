@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "QQQ"
+  ],
+  "key": {
+    "Q": {
+      "item": "minecraft:white_concrete"
+    }
+  },
+  "result": {
+    "item": "mcbaseball:pitchers_rubber",
+    "count": 1
+  }
+}

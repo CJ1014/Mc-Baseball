@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "mcbaseball:field_controller",
+    "mcbaseball:scoreboard",
+    "mcbaseball:foul_pole",
+    "mcbaseball:stadium_kit"
+  ]
+}

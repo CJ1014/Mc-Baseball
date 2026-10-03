@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "DR",
+    "RD"
+  ],
+  "key": {
+    "D": {
+      "item": "minecraft:dirt"
+    },
+    "R": {
+      "item": "minecraft:red_sand"
+    }
+  },
+  "result": {
+    "item": "mcbaseball:infield_dirt",
+    "count": 4
+  }
+}

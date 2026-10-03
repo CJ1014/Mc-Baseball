@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "mcbaseball:infield_dirt",
+    "mcbaseball:outfield_grass_light",
+    "mcbaseball:outfield_grass_dark",
+    "mcbaseball:warning_track"
+  ]
+}

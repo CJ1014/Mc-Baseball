@@ -1,0 +1,56 @@
+{
+  "bat_hit": {
+    "subtitle": "subtitles.mcbaseball.bat_hit",
+    "sounds": [
+      "mcbaseball:bat_hit"
+    ]
+  },
+  "bat_swing": {
+    "subtitle": "subtitles.mcbaseball.bat_swing",
+    "sounds": [
+      "mcbaseball:bat_swing"
+    ]
+  },
+  "glove_catch": {
+    "subtitle": "subtitles.mcbaseball.glove_catch",
+    "sounds": [
+      "mcbaseball:glove_catch"
+    ]
+  },
+  "ball_bounce": {
+    "subtitle": "subtitles.mcbaseball.ball_bounce",
+    "sounds": [
+      "mcbaseball:ball_bounce"
+    ]
+  },
+  "slide": {
+    "subtitle": "subtitles.mcbaseball.slide",
+    "sounds": [
+      "mcbaseball:slide"
+    ]
+  },
+  "strikeout": {
+    "subtitle": "subtitles.mcbaseball.strikeout",
+    "sounds": [
+      "mcbaseball:strikeout"
+    ]
+  },
+  "home_run": {
+    "subtitle": "subtitles.mcbaseball.home_run",
+    "sounds": [
+      "mcbaseball:home_run"
+    ]
+  },
+  "game_start": {
+    "subtitle": "subtitles.mcbaseball.game_start",
+    "sounds": [
+      "mcbaseball:game_start"
+    ]
+  },
+  "game_end": {
+    "subtitle": "subtitles.mcbaseball.game_end",
+    "sounds": [
+      "mcbaseball:game_end"
+    ]
+  }
+}

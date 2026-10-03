@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "mcbaseball:block/field_controller_front",
+    "side": "mcbaseball:block/field_controller_side",
+    "top": "mcbaseball:block/field_controller_top"
+  }
+}

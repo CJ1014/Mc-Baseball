@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "mcbaseball:block/scoreboard"
+    },
+    "facing=east": {
+      "model": "mcbaseball:block/scoreboard",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "mcbaseball:block/scoreboard",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "mcbaseball:block/scoreboard",
+      "y": 270
+    }
+  }
+}

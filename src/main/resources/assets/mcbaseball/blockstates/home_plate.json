@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "mcbaseball:block/home_plate"
+    },
+    "facing=east": {
+      "model": "mcbaseball:block/home_plate",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "mcbaseball:block/home_plate",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "mcbaseball:block/home_plate",
+      "y": 270
+    }
+  }
+}

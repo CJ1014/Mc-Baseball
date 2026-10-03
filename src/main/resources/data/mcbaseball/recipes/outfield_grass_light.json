@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "GG",
+    "GB"
+  ],
+  "key": {
+    "G": {
+      "item": "minecraft:grass_block"
+    },
+    "B": {
+      "item": "minecraft:bone_meal"
+    }
+  },
+  "result": {
+    "item": "mcbaseball:outfield_grass_light",
+    "count": 3
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "mcbaseball:item/baseball_pants",
+    "layer1": "mcbaseball:item/baseball_pants_overlay"
+  }
+}

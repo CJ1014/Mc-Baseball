@@ -1,0 +1,78 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "r": "mcbaseball:block/pitchers_rubber",
+    "particle": "mcbaseball:block/pitchers_rubber"
+  },
+  "elements": [
+    {
+      "from": [
+        1,
+        0,
+        6
+      ],
+      "to": [
+        15,
+        1,
+        10
+      ],
+      "faces": {
+        "up": {
+          "texture": "#r",
+          "uv": [
+            1,
+            6,
+            15,
+            10
+          ]
+        },
+        "down": {
+          "texture": "#r",
+          "uv": [
+            1,
+            6,
+            15,
+            10
+          ],
+          "cullface": "down"
+        },
+        "north": {
+          "texture": "#r",
+          "uv": [
+            1,
+            15,
+            15,
+            16
+          ]
+        },
+        "south": {
+          "texture": "#r",
+          "uv": [
+            1,
+            15,
+            15,
+            16
+          ]
+        },
+        "west": {
+          "texture": "#r",
+          "uv": [
+            6,
+            15,
+            10,
+            16
+          ]
+        },
+        "east": {
+          "texture": "#r",
+          "uv": [
+            6,
+            15,
+            10,
+            16
+          ]
+        }
+      }
+    }
+  ]
+}

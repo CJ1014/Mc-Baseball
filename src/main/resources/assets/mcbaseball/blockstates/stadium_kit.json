@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "mcbaseball:block/stadium_kit"
+    },
+    "facing=east": {
+      "model": "mcbaseball:block/stadium_kit",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "mcbaseball:block/stadium_kit",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "mcbaseball:block/stadium_kit",
+      "y": 270
+    }
+  }
+}

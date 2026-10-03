@@ -1,0 +1,23 @@
+# gradle
+.gradle/
+build/
+out/
+classes/
+run/
+runs/
+
+# eclipse / idea / vscode
+*.launch
+.settings/
+.metadata/
+.classpath
+.project
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+bin/
+
+# live-mode dev recordings
+live-recordings/

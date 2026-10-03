@@ -1,0 +1,34 @@
+{
+  "variants": {
+    "facing=north,ready=false": {
+      "model": "mcbaseball:block/field_controller"
+    },
+    "facing=east,ready=false": {
+      "model": "mcbaseball:block/field_controller",
+      "y": 90
+    },
+    "facing=south,ready=false": {
+      "model": "mcbaseball:block/field_controller",
+      "y": 180
+    },
+    "facing=west,ready=false": {
+      "model": "mcbaseball:block/field_controller",
+      "y": 270
+    },
+    "facing=north,ready=true": {
+      "model": "mcbaseball:block/field_controller_ready"
+    },
+    "facing=east,ready=true": {
+      "model": "mcbaseball:block/field_controller_ready",
+      "y": 90
+    },
+    "facing=south,ready=true": {
+      "model": "mcbaseball:block/field_controller_ready",
+      "y": 180
+    },
+    "facing=west,ready=true": {
+      "model": "mcbaseball:block/field_controller_ready",
+      "y": 270
+    }
+  }
+}

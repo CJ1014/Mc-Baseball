@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "GGG",
+    "RBR",
+    "GGG"
+  ],
+  "key": {
+    "G": {
+      "item": "minecraft:green_concrete"
+    },
+    "R": {
+      "item": "minecraft:redstone"
+    },
+    "B": {
+      "item": "minecraft:glowstone"
+    }
+  },
+  "result": {
+    "item": "mcbaseball:scoreboard",
+    "count": 1
+  }
+}
