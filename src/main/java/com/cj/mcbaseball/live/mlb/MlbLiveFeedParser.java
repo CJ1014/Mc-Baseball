@@ -1,6 +1,11 @@
 package com.cj.mcbaseball.live.mlb;
 
+import com.cj.mcbaseball.live.model.LiveFeed;
 import com.cj.mcbaseball.live.model.LiveGameState;
+import com.cj.mcbaseball.live.model.LiveHit;
+import com.cj.mcbaseball.live.model.LivePlay;
+import com.cj.mcbaseball.live.model.LivePlayEvent;
+import com.cj.mcbaseball.live.model.LiveRunner;
 import com.cj.mcbaseball.live.model.LiveGameSummary;
 import com.cj.mcbaseball.live.model.LiveLineTotals;
 import com.cj.mcbaseball.live.model.LivePitch;
@@ -51,6 +56,11 @@ public final class MlbLiveFeedParser {
      * @throws LiveDataException if the document is not a live feed at all
      */
     public static LiveGameState parse(String body, long expectedGameId) throws LiveDataException {
+        return parseFeed(body, expectedGameId).state();
+    }
+
+    /** Game state plus the full play-by-play. */
+    public static LiveFeed parseFeed(String body, long expectedGameId) throws LiveDataException {
         JsonObject root = Json.parseObject(body);
         if (Json.obj(root, "gameData") == null && Json.obj(root, "liveData") == null) {
             throw new LiveDataException(LiveDataException.Kind.INVALID_RESPONSE, "not a live feed document");
@@ -59,7 +69,149 @@ public final class MlbLiveFeedParser {
         if (pk != expectedGameId) {
             throw new LiveDataException(LiveDataException.Kind.INVALID_RESPONSE, "feed is for game " + pk + ", expected " + expectedGameId);
         }
-        return new MlbLiveFeedParser(root).build(root, pk);
+        MlbLiveFeedParser p = new MlbLiveFeedParser(root);
+        return new LiveFeed(p.build(root, pk), p.plays(Json.arr(Json.obj(root, "liveData", "plays"), "allPlays")));
+    }
+
+    private static final int MAX_PLAYS = 400;
+    private static final int MAX_EVENTS_PER_PLAY = 80;
+
+    private List<LivePlay> plays(@Nullable JsonArray all) {
+        List<LivePlay> out = new ArrayList<>();
+        if (all == null) {
+            return out;
+        }
+        for (int i = 0; i < all.size() && out.size() < MAX_PLAYS; i++) {
+            JsonObject p = Json.objAt(all, i);
+            JsonObject about = Json.obj(p, "about");
+            int ab = Json.integer(about, "atBatIndex", Json.integer(p, "atBatIndex", -1));
+            if (p == null || ab < 0) {
+                continue;
+            }
+            JsonObject result = Json.obj(p, "result");
+            JsonObject matchup = Json.obj(p, "matchup");
+            List<LivePlayEvent> events = new ArrayList<>();
+            JsonArray pe = Json.arr(p, "playEvents");
+            if (pe != null) {
+                for (int j = 0; j < pe.size() && events.size() < MAX_EVENTS_PER_PLAY; j++) {
+                    LivePlayEvent e = this.playEvent(Json.objAt(pe, j), j);
+                    if (e != null) {
+                        events.add(e);
+                    }
+                }
+            }
+            List<LiveRunner> runners = new ArrayList<>();
+            JsonArray rs = Json.arr(p, "runners");
+            if (rs != null) {
+                for (int j = 0; j < rs.size() && runners.size() < 20; j++) {
+                    LiveRunner r = this.runner(Json.objAt(rs, j));
+                    if (r != null) {
+                        runners.add(r);
+                    }
+                }
+            }
+            out.add(new LivePlay(
+                ab,
+                Json.integer(about, "inning", -1),
+                Json.bool(about, "isTopInning", "top".equalsIgnoreCase(Json.str(about, "halfInning"))),
+                Json.bool(about, "isComplete", false),
+                this.player(Json.obj(matchup, "batter")),
+                this.player(Json.obj(matchup, "pitcher")),
+                Json.str(result, "eventType"),
+                Json.str(result, "event"),
+                Json.str(result, "description"),
+                Json.integer(result, "rbi", 0),
+                Json.integer(result, "awayScore", -1),
+                Json.integer(result, "homeScore", -1),
+                Json.bool(result, "isOut", false),
+                Json.integer(Json.obj(p, "count"), "outs", -1),
+                events,
+                runners,
+                MlbScheduleParser.startMillis(Json.str(about, "endTime", Json.str(p, "playEndTime")))
+            ));
+        }
+        out.sort(java.util.Comparator.comparingInt(LivePlay::atBatIndex));
+        return out;
+    }
+
+    @Nullable
+    private LivePlayEvent playEvent(@Nullable JsonObject e, int fallbackIndex) {
+        if (e == null) {
+            return null;
+        }
+        JsonObject details = Json.obj(e, "details");
+        boolean isPitch = Json.bool(e, "isPitch", false);
+        String type = Json.str(e, "type");
+        LivePlayEvent.Kind kind = isPitch ? LivePlayEvent.Kind.PITCH : switch (type) {
+            case "action" -> LivePlayEvent.Kind.ACTION;
+            case "pickoff" -> LivePlayEvent.Kind.PICKOFF;
+            case "stepoff" -> LivePlayEvent.Kind.STEPOFF;
+            case "no_pitch" -> LivePlayEvent.Kind.NO_PITCH;
+            default -> LivePlayEvent.Kind.OTHER;
+        };
+        JsonObject count = Json.obj(e, "count");
+        JsonObject hd = Json.obj(e, "hitData");
+        LiveHit hit = null;
+        if (hd != null) {
+            JsonObject c = Json.obj(hd, "coordinates");
+            hit = new LiveHit(
+                Json.dbl(hd, "launchSpeed", Double.NaN), Json.dbl(hd, "launchAngle", Double.NaN), Json.dbl(hd, "totalDistance", Double.NaN),
+                Json.str(hd, "trajectory"), Json.str(hd, "hardness"), Json.str(hd, "location"), Json.dbl(c, "coordX", Double.NaN), Json.dbl(c, "coordY", Double.NaN)
+            );
+        }
+        String eventType = Json.str(details, "eventType");
+        if (eventType.isEmpty() && kind == LivePlayEvent.Kind.PICKOFF) {
+            eventType = "pickoff_attempt";
+        }
+        return new LivePlayEvent(
+            Json.integer(e, "index", fallbackIndex),
+            kind,
+            Json.str(e, "playId"),
+            isPitch ? pitch(e) : LivePitch.NONE,
+            hit,
+            isPitch ? "" : eventType,
+            Json.str(details, "description"),
+            Json.bool(e, "isSubstitution", false),
+            this.player(Json.obj(e, "player")),
+            Json.str(Json.obj(e, "position"), "abbreviation"),
+            Json.integer(count, "balls", -1),
+            Json.integer(count, "strikes", -1),
+            Json.integer(count, "outs", -1),
+            MlbScheduleParser.startMillis(Json.str(e, "startTime"))
+        );
+    }
+
+    @Nullable
+    private LiveRunner runner(@Nullable JsonObject r) {
+        if (r == null) {
+            return null;
+        }
+        JsonObject mv = Json.obj(r, "movement");
+        JsonObject d = Json.obj(r, "details");
+        List<LiveRunner.Credit> credits = new ArrayList<>();
+        JsonArray cs = Json.arr(r, "credits");
+        if (cs != null) {
+            for (int i = 0; i < cs.size() && credits.size() < 12; i++) {
+                JsonObject c = Json.objAt(cs, i);
+                if (c != null) {
+                    credits.add(new LiveRunner.Credit(
+                        Json.integer(Json.obj(c, "player"), "id", 0), Json.str(Json.obj(c, "position"), "abbreviation"), Json.str(c, "credit")));
+                }
+            }
+        }
+        return new LiveRunner(
+            this.player(Json.obj(d, "runner")),
+            Json.str(mv, "start"),
+            Json.str(mv, "end"),
+            Json.str(mv, "outBase"),
+            Json.bool(mv, "isOut", false),
+            Json.integer(mv, "outNumber", -1),
+            Json.str(d, "eventType"),
+            Json.str(d, "movementReason"),
+            Json.bool(d, "isScoringEvent", false),
+            Json.integer(d, "playIndex", -1),
+            credits
+        );
     }
 
     private LiveGameState build(JsonObject root, long pk) {

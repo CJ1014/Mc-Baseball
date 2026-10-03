@@ -60,6 +60,7 @@ public final class BaseballConfig {
     public static final IntValue LIVE_SCHEDULE_REFRESH_IDLE_SECONDS;
     public static final IntValue LIVE_FEED_REFRESH_SECONDS;
     public static final BooleanValue LIVE_DEBUG_RECORDING;
+    public static final BooleanValue LIVE_DEBUG_MODE;
     public static final IntValue LIVE_DEBUG_RECORDING_MAX_FILES;
 
     private BaseballConfig() {
@@ -158,6 +159,9 @@ public final class BaseballConfig {
             .define("debugRecording", false);
         LIVE_DEBUG_RECORDING_MAX_FILES = b.comment("DEVELOPER: stop recording after this many files per server run.")
             .defineInRange("debugRecordingMaxFiles", 2000, 10, 100000);
+        LIVE_DEBUG_MODE = b.comment("DEVELOPER: show the Live Debug panel on Field Controllers following a game, and list recorded games",
+                "(from <server folder>/mcbaseball-live-recordings) under RECORDED (DEV) in today's game browser so they can be replayed.")
+            .define("debugMode", false);
         b.pop();
         SPEC = b.build();
     }

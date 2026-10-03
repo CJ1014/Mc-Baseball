@@ -3,6 +3,7 @@ package com.cj.mcbaseball.client.screen;
 import com.cj.mcbaseball.field.FieldControllerBlockEntity;
 import com.cj.mcbaseball.network.GameActionPacket;
 import com.cj.mcbaseball.client.ClientLiveWatch;
+import com.cj.mcbaseball.client.screen.live.LiveDebugScreen;
 import com.cj.mcbaseball.client.screen.live.LiveGameBrowserScreen;
 import com.cj.mcbaseball.live.model.LiveWatchSnapshot;
 import com.cj.mcbaseball.network.LiveWatchActionPacket;
@@ -72,6 +73,14 @@ public class FieldControllerScreen extends ControllerScreen {
                     .bounds(x + 120, y + 24, 50, 20)
                     .build()
             );
+            if (snap != null && !snap.debugLines().isEmpty()) {
+                this.addRenderableWidget(
+                    Button.builder(Component.translatable("mcbaseball.gui.field.live_debug").withStyle(ChatFormatting.YELLOW),
+                            b -> this.minecraft.setScreen(new LiveDebugScreen(this.pos, this)))
+                        .bounds(8, 8, 100, 20)
+                        .build()
+                );
+            }
         } else {
             this.addRenderableWidget(
                 Button.builder(

@@ -50,7 +50,7 @@ public class LiveGameDetailScreen extends LiveScreen {
                 this.minecraft.setScreen(null);
             }).bounds(cx - 160, by, 150, 20).build());
             this.back(cx + 10, by, 150);
-        } else if (g != null && !g.status().state().hasNoGame() && g.section() != LiveGameStatus.Section.FINAL) {
+        } else if (g != null && !g.status().state().hasNoGame() && (g.section() != LiveGameStatus.Section.FINAL || g.gameId() < 0)) {
             Component label = g.section() == LiveGameStatus.Section.LIVE
                 ? Component.translatable("mcbaseball.gui.live.watch_live").withStyle(ChatFormatting.GREEN, ChatFormatting.BOLD)
                 : Component.translatable("mcbaseball.gui.live.wait_for_game").withStyle(ChatFormatting.AQUA);

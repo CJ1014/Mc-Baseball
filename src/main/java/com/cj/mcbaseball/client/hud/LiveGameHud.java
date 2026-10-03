@@ -89,7 +89,8 @@ public final class LiveGameHud {
             lineY = text(g, font, st == LiveGameStatus.State.FINAL ? "GAME COMPLETE" : s.status().label(), x, lineY, GRAY);
         }
         if (!st.isOver()) {
-            String due = s.isBreak() || s.betweenBatters() || st.section() == LiveGameStatus.Section.UPCOMING ? "Due up: " : "AB ";
+            boolean notBatting = s.isBreak() || s.betweenBatters() || st.section() == LiveGameStatus.Section.UPCOMING || st == LiveGameStatus.State.WARMUP;
+            String due = notBatting ? "Due up: " : "AB ";
             if (s.batter().known()) {
                 lineY = text(g, font, due + s.batter().displayWithNumber() + hand(s.batter().batSide()), x, lineY, WHITE);
             }
@@ -110,7 +111,16 @@ public final class LiveGameHud {
                 }
             }
         }
-        if (!s.lastPlay().isEmpty() && st.section() != LiveGameStatus.Section.UPCOMING) {
+        List<String> recent = snap.recentEvents();
+        if (!recent.isEmpty()) {
+            // Play-by-play as the recreation plays it, newest first. The newest event gets two lines.
+            for (int i = 0; i < Math.min(3, recent.size()); i++) {
+                List<FormattedCharSequence> lines = font.split(Component.literal("\u25B8 " + recent.get(i)), W - 8);
+                for (int j = 0; j < Math.min(i == 0 ? 2 : 1, lines.size()); j++) {
+                    lineY = textSeq(g, font, lines.get(j), x, lineY, i == 0 ? WHITE : GRAY);
+                }
+            }
+        } else if (!s.lastPlay().isEmpty() && st.section() != LiveGameStatus.Section.UPCOMING) {
             List<FormattedCharSequence> lines = font.split(Component.literal(s.lastPlay()), W - 8);
             for (int i = 0; i < Math.min(2, lines.size()); i++) {
                 lineY = textSeq(g, font, lines.get(i), x, lineY, GRAY);
@@ -128,6 +138,9 @@ public final class LiveGameHud {
     private static Header header(LiveWatchSnapshot snap, LiveGameState s) {
         if (snap.status() == LiveProviderStatus.STALE) {
             return new Header("● RECONNECTING", YELLOW);
+        }
+        if (snap.gameId() < 0) {
+            return new Header("● RECORDED", YELLOW);
         }
         LiveGameStatus.State st = s.status().state();
         return switch (st) {
@@ -155,7 +168,7 @@ public final class LiveGameHud {
             g.drawString(font, Component.literal(hr).withStyle(ChatFormatting.BOLD), x + 59 - font.width(hr), y + 16, WHITE, true);
         }
         LiveGameStatus.State st = s.status().state();
-        boolean inGame = st.section() == LiveGameStatus.Section.LIVE && s.inning() > 0;
+        boolean inGame = st.section() == LiveGameStatus.Section.LIVE && st != LiveGameStatus.State.WARMUP && s.inning() > 0;
         if (inGame || (st.isOver() && s.inning() > 0)) {
             String inning = s.isBreak()
                 ? s.inningLabel().toUpperCase(Locale.ROOT)

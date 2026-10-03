@@ -1,5 +1,6 @@
 package com.cj.mcbaseball.live.model;
 
+import java.util.List;
 import javax.annotation.Nullable;
 
 /**
@@ -9,6 +10,8 @@ import javax.annotation.Nullable;
  * @param fetchedAtMillis server time of the last successful update (0 = never)
  * @param serverNowMillis server time this snapshot was built
  * @param retryInMillis   when STALE/UNAVAILABLE: time until the next attempt
+ * @param recentEvents    newest-first labels of real events the recreation has played (HUD ticker)
+ * @param debugLines      developer panel lines; empty unless live debug mode is on
  */
 public record LiveWatchSnapshot(
     long gameId,
@@ -19,11 +22,15 @@ public record LiveWatchSnapshot(
     long retryInMillis,
     String message,
     String provider,
-    int version
+    int version,
+    List<String> recentEvents,
+    List<String> debugLines
 ) {
     public LiveWatchSnapshot {
         status = status == null ? LiveProviderStatus.LOADING : status;
         message = message == null ? "" : message;
         provider = provider == null ? "" : provider;
+        recentEvents = recentEvents == null ? List.of() : List.copyOf(recentEvents);
+        debugLines = debugLines == null ? List.of() : List.copyOf(debugLines);
     }
 }

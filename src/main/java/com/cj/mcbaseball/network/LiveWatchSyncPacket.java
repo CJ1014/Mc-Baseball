@@ -46,6 +46,31 @@ public record LiveWatchSyncPacket(BlockPos controller, @Nullable LiveWatchSnapsh
         if (s.state() != null) {
             writeState(b, s.state());
         }
+        writeLines(b, s.recentEvents(), MAX_RECENT);
+        writeLines(b, s.debugLines(), MAX_DEBUG);
+    }
+
+    static final int MAX_RECENT = 8;
+    static final int MAX_DEBUG = 40;
+
+    private static void writeLines(FriendlyByteBuf b, List<String> lines, int max) {
+        int n = Math.min(lines.size(), max);
+        b.writeVarInt(n);
+        for (int i = 0; i < n; i++) {
+            b.writeUtf(clip(lines.get(i), LONG), LONG);
+        }
+    }
+
+    private static List<String> readLines(FriendlyByteBuf b, int max) {
+        int n = b.readVarInt();
+        if (n < 0 || n > max) {
+            throw new IllegalArgumentException("Too many lines in live packet: " + n);
+        }
+        List<String> out = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            out.add(b.readUtf(LONG));
+        }
+        return out;
     }
 
     public static LiveWatchSyncPacket decode(FriendlyByteBuf b) {
@@ -62,7 +87,9 @@ public record LiveWatchSyncPacket(BlockPos controller, @Nullable LiveWatchSnapsh
         String provider = b.readUtf(SHORT);
         int version = b.readVarInt();
         LiveGameState state = b.readBoolean() ? readState(b) : null;
-        return new LiveWatchSyncPacket(pos, new LiveWatchSnapshot(gameId, state, status, fetchedAt, serverNow, retryIn, message, provider, version));
+        List<String> recent = readLines(b, MAX_RECENT);
+        List<String> debug = readLines(b, MAX_DEBUG);
+        return new LiveWatchSyncPacket(pos, new LiveWatchSnapshot(gameId, state, status, fetchedAt, serverNow, retryIn, message, provider, version, recent, debug));
     }
 
     private static void writeState(FriendlyByteBuf b, LiveGameState s) {

@@ -4,7 +4,7 @@ Watch a real MLB game recreated by the mod's NPCs in your Minecraft stadium.
 The real game decides every outcome; the mod's existing pitching, batting, fielding and
 running systems make it look right.
 
-**Status: Phases 1-2 of 7 done.**
+**Status: Phases 1-3 of 7 done.**
 
 * **Phase 1:** Field Controller → **Watch Live Game** opens a graphical browser of today's real
   games (LIVE / UPCOMING / FINAL) with scores, inning, outs, count, first-pitch time, line score
@@ -15,7 +15,13 @@ running systems make it look right.
   batter and pitcher (name, number, handedness), last pitch (call, mph, type), last play, and
   `● LIVE` / `● RECONNECTING` / `LIVE DATA TEMPORARILY UNAVAILABLE` with "Updated Ns ago".
   Joining mid-game syncs straight to the current state. The controller menu shows
-  `LIVE: ATL @ LAD` and a **Stop** button. No NPC recreation yet (Phase 3+).
+  `LIVE: ATL @ LAD` and a **Stop** button.
+* **Phase 3:** each field following a game runs a `LiveBaseballSession`: new pitches, actions
+  (steals, substitutions, pickoffs...) and at-bat results are detected exactly once, queued in game
+  order, and played at a watchable pace (catch-up up to 2x, never skipping events). The HUD shows a
+  play-by-play ticker of what the recreation just played. Developer debug mode adds a **Live Debug**
+  panel (real state vs. Minecraft state, queue, processed ids...) and **replay of recorded games**.
+  No NPC recreation yet: Phase 4 plugs NPCs into the queue.
 
 ## How it fits together
 
@@ -25,7 +31,7 @@ running systems make it look right.
                      MlbStatsApiProvider  implements LiveBaseballProvider   ◀─ swap the data source here
                                │  (MlbScheduleParser, MlbStatusMapper → provider-neutral models)
                                ▼
-        ┌──────────────────────┴───────────────────────┐
+        ┌──────────────────────┴───────────────────────┐  (RoutingProvider: negative ids -> RecordedFeedProvider)
         ▼                                              ▼
  LiveScheduleService (browser)                  LiveWatchService (stadiums following a game)
    │ LiveScheduleSyncPacket on change              │ one feed per game, polled only while someone
@@ -64,7 +70,14 @@ running systems make it look right.
 | `live.LiveBaseballProvider` | Data-source interface: `getGamesForDate`, `getGameInfo`, `getLiveGameState`. One feed request returns score, line score, count, at-bat, runners, players and lineups together, so they arrive as one `LiveGameState` rather than separate network calls. |
 | `live.mlb.MlbLiveFeedParser` | Live feed JSON → `LiveGameState` (players, numbers, positions, batting order, last pitch, last play). |
 | `live.LiveWatchService` | Which game each field follows; feed polling, sharing, audience gating, outage handling. Minecraft-agnostic, unit tested. |
-| `client.hud.LiveGameHud` | The live scoreboard overlay. |
+| `client.hud.LiveGameHud` | The live scoreboard overlay + play-by-play ticker. |
+| `live.mlb.MlbLiveFeedParser.parseFeed` | Also builds the play-by-play: `LivePlay` (at-bat) → `LivePlayEvent` (pitch/action, with `LivePitch` and Statcast `LiveHit` only when reported) and `LiveRunner` movements with fielder credits. |
+| `live.session.LiveEventDetector` | Snapshot → new `LiveEvent`s exactly once (pitch `playId`, action at-bat+index, result at-bat). Join mid-game = sync without events. Corrections (`CallChanged`, `ResultChanged`) instead of duplicates. |
+| `live.session.LiveEventQueue` | Ordered playback: one event at a time, catch-up ≤2x, downtime instant, in-play pitch waits for its result. |
+| `live.session.RecreationState` | What Minecraft has shown so far (count, outs, score, runners by base). |
+| `live.session.LiveBaseballSession` | Detector + queue + recreation state for one field. |
+| `live.recorded.*` | Developer test mode: `RecordedGames` finds saved feed sequences, `RecordedFeedProvider` replays them, `RoutingProvider` sends negative ids there. |
+| `client.screen.live.LiveDebugScreen` | Developer panel. |
 | `live.mlb.MlbStatsApiProvider` | MLB Stats API implementation. |
 | `live.mlb.MlbScheduleParser` | Schedule JSON → `LiveGameSummary`; never throws on missing/odd fields. |
 | `live.mlb.MlbStatusMapper` | All ~230 MLB status codes → `LiveGameStatus.State`. |
@@ -76,7 +89,7 @@ running systems make it look right.
 | `live.LiveDates` | "Today" for baseball = US Eastern date, rolling over at 5 AM ET. |
 | `live.LiveBaseballManager` | Per-server owner of threads, client, provider, service. |
 | `network.LiveBrowserRequestPacket` / `LiveScheduleSyncPacket` | Browser data (client ↔ server). |
-| `network.LiveWatchActionPacket` / `LiveWatchSyncPacket` | Start/stop following a game; HUD state to nearby players. Protocol version 3. |
+| `network.LiveWatchActionPacket` / `LiveWatchSyncPacket` | Start/stop following a game; HUD state to nearby players. Protocol version 4. |
 | `client.screen.live.*` | Browser and detail screens. |
 
 ## Server config (`serverconfig/mcbaseball-server.toml`, section `[live]`)
@@ -92,6 +105,7 @@ running systems make it look right.
 | `feedRefreshSeconds` | `10` | Watched game's feed while live (never faster than the feed's own hint). |
 | `debugRecording` | `false` | DEV: save raw responses to `<server>/mcbaseball-live-recordings/`. |
 | `debugRecordingMaxFiles` | `2000` | DEV: cap per server run. |
+| `debugMode` | `false` | DEV: Live Debug panel on following fields; recorded games listed under RECORDED (DEV) in today's browser. |
 
 ## MLB Stats API facts (verified against real responses, 2026-10-03)
 
@@ -129,11 +143,24 @@ running systems make it look right.
 | Field geometry, spots, home-run fence | `FieldGeometry`, `FieldLayout` |
 | Scoreboard + HUD + messages | `ScoreboardBlockEntity`, `GameHudPacket`/`GameHud`, `GameBroadcaster` |
 
+## Developer test mode (recorded games)
+
+1. Set `debugMode = true` (and optionally `debugRecording = true` to capture games yourself) in
+   `serverconfig/mcbaseball-server.toml`.
+2. Put recordings in `<server folder>/mcbaseball-live-recordings/`, either the debug recorder's own
+   files (`<date>/<time>_feed_<gamePk>.json`) or a folder named `<gamePk>_<anything>/` with
+   time-stamped `.json` / `.json.gz` snapshots (like `src/test/resources/live/mlb/recorded/`).
+3. Today's browser lists them under **RECORDED (DEV)** → **Replay**. Each poll serves the next snapshot,
+   through exactly the same detector / queue / HUD path as a live game. The HUD says `● RECORDED`.
+
 ## Testing
 
-* `./gradlew build`: compiles, runs 68 unit tests (schedule and live-feed parsers on real recorded
+* `./gradlew build`: compiles, runs 86 unit tests (schedule and live-feed parsers on real recorded
   responses, malformed JSON, HTTP client against a misbehaving local server, schedule and watch
-  service timing/backoff/sharing/audience/shutdown, packet round-trips, dates), builds the jar.
+  service timing/backoff/sharing/audience/shutdown, packet round-trips, dates; Phase 3: every real
+  event of a recorded inning exactly once and in order, joining at every snapshot never replays,
+  corrections, queue pacing/catch-up, and the recreation state matching the real game after every
+  one of 20 real polls), builds the jar.
 * `./gradlew test -Dmcbaseball.liveTests=true --tests '*RealMlbApiSmokeTest'`: hits the real API.
 * `./gradlew runGameTestServer`: the mod's original 21 GameTests (including a full 9-inning NPC game).
 * Fixtures in `src/test/resources/live/mlb/` are real MLB responses (test-only, not in the jar).
@@ -142,7 +169,7 @@ running systems make it look right.
 
 1. ✅ Live data networking, today's games, Watch Live Game browser.
 2. ✅ Select a game → live feed → score / inning / count / outs / batter / pitcher / runners in a HUD.
-3. `LiveBaseballSession`: detect new pitches and plays without duplicates; event queue; join mid-game.
+3. ✅ `LiveBaseballSession`: detect new pitches and plays without duplicates; event queue; join mid-game.
 4. Real pitches → Minecraft pitcher/batter NPCs (`PitchCoordinateMapper`, pitch-type mapping).
 5. Basic outcomes (balls, strikes, walks, strikeouts, hits, outs, home runs).
 6. Runners and fielding detail, double plays, steals, errors, sacrifices, substitutions.

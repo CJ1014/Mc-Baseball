@@ -64,7 +64,8 @@ public record LiveWatchActionPacket(BlockPos controller, boolean start, long gam
             sp.displayClientMessage(Component.translatable("mcbaseball.live.game_in_progress").withStyle(ChatFormatting.RED), true);
             return;
         }
-        if (p.gameId <= 0) {
+        // Negative ids are recorded games (developer test mode only).
+        if (p.gameId == 0 || p.gameId < 0 && !BaseballConfig.LIVE_DEBUG_MODE.get()) {
             return;
         }
         live.startWatching(level, p.controller, p.gameId);

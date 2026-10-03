@@ -28,8 +28,8 @@ public class LiveGameBrowserScreen extends LiveScreen {
     private static final int BTN_W = 100;
     private static final int LIST_TOP = 46;
 
-    /** A visual line in the list: either a section header or a game card. */
-    private record Row(@Nullable LiveGameStatus.Section header, int count, @Nullable LiveGameSummary game) {
+    /** A visual line in the list: either a section header (name + colour) or a game card. */
+    private record Row(@Nullable String header, int color, int count, @Nullable LiveGameSummary game) {
         int height() {
             return this.header != null ? HEADER_H : ROW_H;
         }
@@ -56,13 +56,26 @@ public class LiveGameBrowserScreen extends LiveScreen {
             return rows;
         }
         for (LiveGameStatus.Section section : LiveGameStatus.Section.values()) {
-            List<LiveGameSummary> games = r.schedule().inSection(section);
+            // Recorded games (negative ids, debug mode only) get their own block at the end.
+            List<LiveGameSummary> games = r.schedule().inSection(section).stream().filter(g -> g.gameId() > 0).toList();
             if (games.isEmpty()) {
                 continue;
             }
-            rows.add(new Row(section, games.size(), null));
+            String name = switch (section) {
+                case LIVE -> "● LIVE";
+                case UPCOMING -> "UPCOMING";
+                case FINAL -> "FINAL";
+            };
+            rows.add(new Row(name, LiveText.sectionColor(section), games.size(), null));
             for (LiveGameSummary g : games) {
-                rows.add(new Row(null, 0, g));
+                rows.add(new Row(null, 0, 0, g));
+            }
+        }
+        List<LiveGameSummary> recorded = r.schedule().games().stream().filter(g -> g.gameId() < 0).toList();
+        if (!recorded.isEmpty()) {
+            rows.add(new Row("RECORDED (DEV)", LiveText.YELLOW, recorded.size(), null));
+            for (LiveGameSummary g : recorded) {
+                rows.add(new Row(null, 0, 0, g));
             }
         }
         return rows;
@@ -122,7 +135,7 @@ public class LiveGameBrowserScreen extends LiveScreen {
         if (s.hasNoGame()) {
             return;
         }
-        Component label = switch (s.section()) {
+        Component label = g.gameId() < 0 ? Component.translatable("mcbaseball.gui.live.replay").withStyle(ChatFormatting.YELLOW) : switch (s.section()) {
             case LIVE -> Component.translatable("mcbaseball.gui.live.watch").withStyle(ChatFormatting.GREEN);
             case UPCOMING -> Component.translatable("mcbaseball.gui.live.watch_when_live");
             case FINAL -> Component.translatable("mcbaseball.gui.live.result");
@@ -213,13 +226,7 @@ public class LiveGameBrowserScreen extends LiveScreen {
     }
 
     private void renderHeader(GuiGraphics g, Row row, int x0, int y) {
-        int color = LiveText.sectionColor(row.header);
-        String name = switch (row.header) {
-            case LIVE -> "● LIVE";
-            case UPCOMING -> "UPCOMING";
-            case FINAL -> "FINAL";
-        };
-        g.drawString(this.font, Component.literal(name + "  (" + row.count + ")").withStyle(ChatFormatting.BOLD), x0 + 2, y + 5, color);
+        g.drawString(this.font, Component.literal(row.header + "  (" + row.count + ")").withStyle(ChatFormatting.BOLD), x0 + 2, y + 5, row.color);
         g.fill(x0, y + 14, x0 + LIST_W, y + 15, 0x40FFFFFF);
     }
 
@@ -227,7 +234,7 @@ public class LiveGameBrowserScreen extends LiveScreen {
         int top = y + 2;
         int bot = y + ROW_H - 2;
         g.fill(x0, top, x0 + LIST_W, bot, 0x70000000);
-        g.fill(x0, top, x0 + 2, bot, 0xFF000000 | LiveText.sectionColor(game.section()));
+        g.fill(x0, top, x0 + 2, bot, 0xFF000000 | (game.gameId() < 0 ? LiveText.YELLOW : LiveText.sectionColor(game.section())));
 
         int textW = LIST_W - BTN_W - 20;
         String matchup = game.matchupShort();
@@ -236,10 +243,10 @@ public class LiveGameBrowserScreen extends LiveScreen {
         }
         g.drawString(this.font, this.font.plainSubstrByWidth(matchup, textW), x0 + 8, top + 4, LiveText.WHITE);
 
-        String status = LiveText.statusLine(game);
+        String status = game.gameId() < 0 ? game.description() : LiveText.statusLine(game);
         int sw = this.font.width(status);
         g.drawString(this.font, status, x0 + 8, top + 16, LiveText.statusColor(game));
-        if (game.showsScore()) {
+        if (game.showsScore() && game.gameId() > 0) {
             g.drawString(this.font, this.font.plainSubstrByWidth(LiveText.score(game), Math.max(0, textW - sw - 12)), x0 + 8 + sw + 10, top + 16, LiveText.WHITE);
         }
     }

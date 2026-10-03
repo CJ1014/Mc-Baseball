@@ -1,7 +1,7 @@
 package com.cj.mcbaseball.live.mlb;
 
 import com.cj.mcbaseball.live.LiveBaseballProvider;
-import com.cj.mcbaseball.live.model.LiveGameState;
+import com.cj.mcbaseball.live.model.LiveFeed;
 import com.cj.mcbaseball.live.model.LiveGameSummary;
 import com.cj.mcbaseball.live.net.LiveApiClient;
 import com.cj.mcbaseball.live.net.LiveDataException;
@@ -66,10 +66,10 @@ public final class MlbStatsApiProvider implements LiveBaseballProvider {
     }
 
     @Override
-    public CompletableFuture<LiveGameState> getLiveGameState(long gameId) {
+    public CompletableFuture<LiveFeed> getLiveFeed(long gameId) {
         return this.client.get(this.feedUrl(gameId), "feed_" + gameId, FEED_MIN_AGE_MILLIS).thenApply(body -> {
             try {
-                return MlbLiveFeedParser.parse(body, gameId);
+                return MlbLiveFeedParser.parseFeed(body, gameId);
             } catch (LiveDataException e) {
                 throw new CompletionException(e);
             }

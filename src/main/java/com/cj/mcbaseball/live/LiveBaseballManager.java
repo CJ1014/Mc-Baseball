@@ -7,7 +7,11 @@ import com.cj.mcbaseball.live.model.LiveSchedule;
 import com.cj.mcbaseball.live.net.LiveApiClient;
 import com.cj.mcbaseball.live.net.ResponseRecorder;
 import com.cj.mcbaseball.field.FieldControllerBlockEntity;
+import com.cj.mcbaseball.live.model.LiveGameSummary;
 import com.cj.mcbaseball.live.model.LiveWatchSnapshot;
+import com.cj.mcbaseball.live.recorded.RecordedFeedProvider;
+import com.cj.mcbaseball.live.recorded.RecordedGames;
+import com.cj.mcbaseball.live.recorded.RoutingProvider;
 import com.cj.mcbaseball.network.LiveScheduleSyncPacket;
 import com.cj.mcbaseball.network.LiveWatchSyncPacket;
 import com.cj.mcbaseball.network.ModNetwork;
@@ -20,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -55,6 +60,10 @@ public final class LiveBaseballManager {
     private final LiveBaseballProvider provider;
     private final LiveScheduleService<UUID> schedules;
     private final LiveWatchService<Stadium> watches;
+    private final boolean debugMode;
+    private final RecordedFeedProvider recorded;
+    /** Browser entries for recorded games (debug mode), filled in off-thread at startup. */
+    private volatile List<LiveGameSummary> recordedGames = List.of();
     /** Which stadium's live HUD each player is currently being sent. */
     private final Map<UUID, Stadium> shown = new HashMap<>();
     private int ticks;
@@ -99,8 +108,20 @@ public final class LiveBaseballManager {
             this::sendSchedule,
             msg -> MCBaseball.LOGGER.warn("[MCBaseball Live] {}", msg)
         );
+        this.debugMode = BaseballConfig.LIVE_DEBUG_MODE.get();
+        Map<Long, List<Path>> recordings = new ConcurrentHashMap<>();
+        this.recorded = new RecordedFeedProvider(recordings, this.ioExecutor);
+        if (this.debugMode) {
+            Path dir = server.getServerDirectory().toPath().resolve("mcbaseball-live-recordings");
+            this.ioExecutor.execute(() -> {
+                recordings.putAll(RecordedGames.scan(dir));
+                this.recordedGames = this.recorded.summaries();
+                MCBaseball.LOGGER.info("[MCBaseball Live] Debug mode: {} recorded game(s) in {}", this.recordedGames.size(), dir.toAbsolutePath());
+            });
+        }
         this.watches = new LiveWatchService<>(
-            this.provider, policy, server, System::currentTimeMillis, this::sendToAudience, msg -> MCBaseball.LOGGER.warn("[MCBaseball Live] {}", msg)
+            new RoutingProvider(this.provider, this.recorded), policy, server, System::currentTimeMillis, this::sendToAudience,
+            msg -> MCBaseball.LOGGER.warn("[MCBaseball Live] {}", msg), this.debugMode
         );
     }
 
@@ -162,6 +183,9 @@ public final class LiveBaseballManager {
     public void startWatching(ServerLevel level, BlockPos controller, long gameId) {
         Stadium s = Stadium.of(level, controller);
         Long before = this.watches.watchedGame(s);
+        if (gameId < 0) {
+            this.recorded.rewind(gameId);
+        }
         this.watches.start(s, gameId);
         MCBaseball.LOGGER.info("[MCBaseball Live] Field at {} now following game {}", controller.toShortString(), gameId);
         if (before != null && before != gameId) {
@@ -250,6 +274,13 @@ public final class LiveBaseballManager {
     }
 
     private void sendSchedule(UUID playerId, LiveSchedule schedule) {
+        List<LiveGameSummary> extra = this.recordedGames;
+        if (this.debugMode && !extra.isEmpty() && schedule.epochDay() == schedule.todayEpochDay()) {
+            List<LiveGameSummary> all = new java.util.ArrayList<>(schedule.games());
+            all.addAll(extra);
+            schedule = new LiveSchedule(schedule.epochDay(), schedule.todayEpochDay(), all, schedule.status(), schedule.fetchedAtMillis(),
+                schedule.serverNowMillis(), schedule.retryInMillis(), schedule.message(), schedule.provider(), schedule.version());
+        }
         ServerPlayer p = this.server.getPlayerList().getPlayer(playerId);
         if (p != null) {
             ModNetwork.toPlayer(p, new LiveScheduleSyncPacket(schedule));

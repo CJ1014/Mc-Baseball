@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.cj.mcbaseball.live.model.LiveFeed;
 import com.cj.mcbaseball.live.model.LiveGameState;
 import com.cj.mcbaseball.live.model.LiveGameStatus;
 import com.cj.mcbaseball.live.model.LiveGameSummary;
@@ -52,10 +53,10 @@ class LiveWatchServiceTest {
         }
 
         @Override
-        public CompletableFuture<LiveGameState> getLiveGameState(long gameId) {
+        public CompletableFuture<LiveFeed> getLiveFeed(long gameId) {
             CompletableFuture<LiveGameState> f = new CompletableFuture<>();
             this.calls.computeIfAbsent(gameId, k -> new ArrayList<>()).add(f);
-            return f;
+            return f.thenApply(s -> new LiveFeed(s, List.of()));
         }
 
         @Override
@@ -84,7 +85,7 @@ class LiveWatchServiceTest {
         this.provider = new FeedProvider();
         this.now = 1_800_000_000_000L;
         this.svc = new LiveWatchService<>(this.provider, LivePollingPolicy.defaults(), this.serverThread::add, () -> this.now,
-            (k, s) -> this.updates.add(Map.entry(k, s)), m -> { });
+            (k, s) -> this.updates.add(Map.entry(k, s)), m -> { }, false);
         this.audience.add("fieldA");
         this.audience.add("fieldB");
     }
@@ -160,7 +161,7 @@ class LiveWatchServiceTest {
         assertEquals(1, this.provider.count(7L));
         this.provider.last(7L).complete(state(7, LiveGameStatus.State.LIVE, 10, 0, 3));
         this.run();
-        assertSame(this.lastFor("fieldA"), this.lastFor("fieldB"));
+        assertSame(this.lastFor("fieldA").state(), this.lastFor("fieldB").state());
     }
 
     @Test

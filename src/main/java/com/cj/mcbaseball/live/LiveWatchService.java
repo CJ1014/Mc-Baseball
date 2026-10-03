@@ -1,9 +1,12 @@
 package com.cj.mcbaseball.live;
 
+import com.cj.mcbaseball.live.model.LiveFeed;
 import com.cj.mcbaseball.live.model.LiveGameState;
 import com.cj.mcbaseball.live.model.LiveProviderStatus;
 import com.cj.mcbaseball.live.model.LiveWatchSnapshot;
 import com.cj.mcbaseball.live.net.LiveDataException;
+import com.cj.mcbaseball.live.session.LiveBaseballSession;
+import com.cj.mcbaseball.live.session.LiveEventQueue;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -26,7 +29,7 @@ import javax.annotation.Nullable;
  *       immediate refresh because the poll time has passed.</li>
  *   <li>Poll rate from {@link LivePollingPolicy#feedIntervalMillis}; stops entirely once final.</li>
  *   <li>Failures: keep the last good state (STALE), back off, keep trying. Never drops the watch.</li>
- *   <li>Every successful poll bumps the version so viewers' "Updated Ns ago" stays truthful.</li>
+ *   <li>Every snapshot sent gets a new version (each poll and each played event), so "Updated Ns ago" stays truthful.</li>
  * </ul>
  *
  * <p><b>Threading:</b> all public methods on the server thread. Provider callbacks hop back through
@@ -44,7 +47,6 @@ public final class LiveWatchService<K> {
         boolean inFlight;
         int failures;
         String message = "";
-        int version = 1;
 
         Feed(long gameId) {
             this.gameId = gameId;
@@ -59,13 +61,18 @@ public final class LiveWatchService<K> {
     private final Consumer<String> log;
     private final Map<Long, Feed> feeds = new HashMap<>();
     private final Map<K, Long> watches = new HashMap<>();
+    private final Map<K, LiveBaseballSession> sessions = new HashMap<>();
+    private final boolean debug;
+    private int emitted;
     private int generation;
     private boolean closed;
     private long fetchesStarted;
 
     public LiveWatchService(
-        LiveBaseballProvider provider, LivePollingPolicy policy, Executor mainThread, LongSupplier clock, BiConsumer<K, LiveWatchSnapshot> onUpdate, Consumer<String> log
+        LiveBaseballProvider provider, LivePollingPolicy policy, Executor mainThread, LongSupplier clock, BiConsumer<K, LiveWatchSnapshot> onUpdate, Consumer<String> log,
+        boolean debug
     ) {
+        this.debug = debug;
         this.provider = provider;
         this.policy = policy;
         this.mainThread = mainThread;
@@ -83,11 +90,15 @@ public final class LiveWatchService<K> {
         if (previous != null && previous != gameId) {
             this.dropFeedIfUnused(previous);
         }
+        if (previous == null || previous != gameId) {
+            this.sessions.put(key, new LiveBaseballSession(gameId, LiveEventQueue::defaultDuration));
+        }
         this.feeds.computeIfAbsent(gameId, Feed::new);
     }
 
     public void stop(K key) {
         Long gameId = this.watches.remove(key);
+        this.sessions.remove(key);
         if (gameId != null) {
             this.dropFeedIfUnused(gameId);
         }
@@ -113,7 +124,12 @@ public final class LiveWatchService<K> {
     public LiveWatchSnapshot snapshot(K key) {
         Long gameId = this.watches.get(key);
         Feed f = gameId == null ? null : this.feeds.get(gameId);
-        return f == null ? null : this.snapshot(f, this.clock.getAsLong());
+        return f == null ? null : this.snapshot(f, key, this.clock.getAsLong());
+    }
+
+    @Nullable
+    public LiveBaseballSession session(K key) {
+        return this.sessions.get(key);
     }
 
     /**
@@ -126,6 +142,15 @@ public final class LiveWatchService<K> {
             return;
         }
         long now = this.clock.getAsLong();
+        // Play queued real events at each field's own pace.
+        for (Map.Entry<K, LiveBaseballSession> s : new ArrayList<>(this.sessions.entrySet())) {
+            if (s.getValue().tick(now)) {
+                LiveWatchSnapshot snap = this.snapshot(s.getKey());
+                if (snap != null) {
+                    this.onUpdate.accept(s.getKey(), snap);
+                }
+            }
+        }
         for (Feed f : this.feeds.values()) {
             if (f.inFlight || now < f.nextPollAt) {
                 continue;
@@ -148,9 +173,9 @@ public final class LiveWatchService<K> {
         this.fetchesStarted++;
         int gen = this.generation;
         try {
-            this.provider.getLiveGameState(f.gameId).whenComplete((state, err) -> {
+            this.provider.getLiveFeed(f.gameId).whenComplete((feed, err) -> {
                 try {
-                    this.mainThread.execute(() -> this.onResult(gen, f, state, err));
+                    this.mainThread.execute(() -> this.onResult(gen, f, feed, err));
                 } catch (RejectedExecutionException ignored) {
                     // Server shutting down.
                 }
@@ -160,14 +185,21 @@ public final class LiveWatchService<K> {
         }
     }
 
-    private void onResult(int gen, Feed f, @Nullable LiveGameState state, @Nullable Throwable err) {
+    private void onResult(int gen, Feed f, @Nullable LiveFeed feed, @Nullable Throwable err) {
         if (gen != this.generation || this.closed || this.feeds.get(f.gameId) != f) {
             return;
         }
         f.inFlight = false;
         long now = this.clock.getAsLong();
-        if (err == null && state != null) {
+        if (err == null && feed != null) {
+            LiveGameState state = feed.state();
             f.state = state;
+            for (Map.Entry<K, Long> w : this.watches.entrySet()) {
+                LiveBaseballSession s = this.sessions.get(w.getKey());
+                if (w.getValue() == f.gameId && s != null) {
+                    s.onFeed(feed);
+                }
+            }
             f.status = LiveProviderStatus.OK;
             f.fetchedAt = now;
             f.failures = 0;
@@ -187,19 +219,27 @@ public final class LiveWatchService<K> {
                 this.log.accept("Game " + f.gameId + " feed failed (" + f.failures + "x): " + ex.getMessage());
             }
         }
-        f.version++;
-        LiveWatchSnapshot snap = this.snapshot(f, now);
         for (Map.Entry<K, Long> w : new ArrayList<>(this.watches.entrySet())) {
             if (w.getValue() == f.gameId) {
-                this.onUpdate.accept(w.getKey(), snap);
+                this.onUpdate.accept(w.getKey(), this.snapshot(f, w.getKey(), now));
             }
         }
     }
 
-    private LiveWatchSnapshot snapshot(Feed f, long now) {
+    private LiveWatchSnapshot snapshot(Feed f, K key, long now) {
         boolean failing = f.status == LiveProviderStatus.STALE || f.status == LiveProviderStatus.UNAVAILABLE;
         long retryIn = failing ? Math.max(0L, f.nextPollAt - now) : 0L;
-        return new LiveWatchSnapshot(f.gameId, f.state, f.status, f.fetchedAt, now, retryIn, f.message, this.provider.displayName(), f.version);
+        LiveBaseballSession s = this.sessions.get(key);
+        List<String> debugLines = List.of();
+        if (this.debug && s != null) {
+            List<String> l = new ArrayList<>();
+            l.add("Provider: " + (f.gameId < 0 ? "Recorded game (replay)" : this.provider.displayName()) + " - " + f.status + (f.message.isEmpty() ? "" : " (" + f.message + ")"));
+            l.add("Last update: " + (f.fetchedAt > 0 ? (now - f.fetchedAt) / 1000L + "s ago" : "never") + "   requests: " + this.fetchesStarted);
+            l.addAll(s.debugLines(now));
+            debugLines = l;
+        }
+        return new LiveWatchSnapshot(f.gameId, f.state, f.status, f.fetchedAt, now, retryIn, f.message, this.provider.displayName(),
+            ++this.emitted, s == null ? List.of() : s.recentEvents(), debugLines);
     }
 
     public long fetchesStarted() {
@@ -211,5 +251,6 @@ public final class LiveWatchService<K> {
         this.generation++;
         this.feeds.clear();
         this.watches.clear();
+        this.sessions.clear();
     }
 }
